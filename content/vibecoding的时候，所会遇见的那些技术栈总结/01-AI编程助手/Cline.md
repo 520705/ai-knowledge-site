@@ -1,3 +1,18 @@
+---
+title: "Cline - 开源 AI 编程助手权威指南"
+date: 2026-04-24
+tags:
+  - AI编程助手
+  - VS Code扩展
+  - 开源工具
+  - MCP协议
+  - Cline
+categories:
+  - AI编程助手
+  - 开发工具
+description: "Cline（原名Claude Dev）是一款功能强大的开源AI编程助手，以VS Code扩展形式提供，支持多种AI模型和MCP协议。本文档全面介绍其功能、配置和使用技巧。"
+---
+
 # Cline - 开源 AI 编程助手权威指南
 
 > [!NOTE]
@@ -5353,3 +5368,274 @@ model Follow {
 
 > [!SUCCESS]
 > Cline 作为完全开源的 AI 编程助手，凭借其 MCP 协议支持、多模型灵活切换和完全本地运行的能力，为注重隐私和成本的开发者提供了优秀的解决方案。结合 Claude、GPT 等大模型的强大能力，以及 Ollama 等本地模型的隐私保护，Cline 成为 2026 年最具性价比的 AI 编程工具。
+
+---
+
+## 实战：30分钟快速上手指南
+
+### 第一阶段：安装与配置（5分钟）
+
+#### 步骤1：安装VS Code扩展
+
+打开VS Code，按下 `Cmd/Ctrl + P` 打开命令面板，输入以下命令：
+
+```
+ext install saudrizwan.claude-dev
+```
+
+点击安装按钮，等待安装完成。安装完成后，重启VS Code。
+
+#### 步骤2：获取API密钥
+
+前往 [Anthropic Console](https://console.anthropic.com/) 注册账户并获取API密钥。
+
+> [!TIP]
+> 新用户通常可以获得免费额度，建议先使用免费额度测试。
+
+#### 步骤3：配置Cline
+
+在VS Code中，按下 `Cmd/Ctrl + Shift + P`，输入 "Cline: Open Settings" 打开设置。
+
+或者直接在 `.vscode/settings.json` 中添加配置：
+
+```json
+{
+  "cline.apiProvider": "anthropic",
+  "cline.apiKey": "sk-ant-your-api-key-here",
+  "cline.model": "claude-sonnet-4-20250514"
+}
+```
+
+### 第二阶段：第一个AI任务（10分钟）
+
+#### 创建新项目
+
+按下 `Cmd/Ctrl + Shift + I` 打开Cline面板，输入以下任务：
+
+```
+帮我创建一个简单的待办事项（Todo）应用：
+- 使用HTML、CSS、JavaScript
+- 可以添加、删除、标记完成待办项
+- 数据存储在localStorage
+- 响应式设计，支持移动端
+```
+
+Cline会自动创建完整的项目文件。完成后，在终端中运行：
+
+```bash
+# 使用Python启动简单服务器
+python3 -m http.server 8080
+```
+
+打开浏览器访问 `http://localhost:8080` 查看效果。
+
+#### 修改和扩展
+
+继续在Cline中对话，添加新功能：
+
+```
+在待办应用中添加：
+1. 任务分类功能（工作/个人）
+2. 截止日期
+3. 优先级（高/中/低）
+4. 搜索和筛选功能
+```
+
+### 第三阶段：进阶功能探索（15分钟）
+
+#### 配置本地模型
+
+安装Ollama：
+
+```bash
+# macOS/Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# 拉取模型
+ollama pull llama3.2
+
+# 启动服务
+ollama serve
+```
+
+更新Cline配置使用本地模型：
+
+```json
+{
+  "cline.apiProvider": "ollama",
+  "cline.apiBase": "http://localhost:11434/v1",
+  "cline.model": "llama3.2"
+}
+```
+
+> [!NOTE]
+> 本地模型完全免费且保护隐私，适合处理敏感代码或在没有网络的环境下使用。
+
+#### 配置MCP服务器
+
+添加GitHub MCP服务器以增强功能：
+
+```json
+{
+  "cline.mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_your_token_here"
+      }
+    }
+  }
+}
+```
+
+### 常见使用场景
+
+#### 场景1：代码重构
+
+```
+我有一个2000行的Python文件，请帮我：
+1. 分析代码结构和复杂度
+2. 识别可以抽取为独立函数的部分
+3. 建议模块化重构方案
+4. 帮我逐步实施重构
+```
+
+#### 场景2：Bug修复
+
+```
+项目报错：TypeError: Cannot read property 'map' of undefined
+错误发生在 src/components/UserList.tsx:45
+请帮我定位并修复问题
+```
+
+#### 场景3：测试编写
+
+```
+请为 src/services/authService.ts 中的以下函数编写单元测试：
+- login(email, password)
+- logout()
+- refreshToken()
+- validateToken(token)
+
+要求：
+- 使用Vitest框架
+- 覆盖率 > 80%
+- 包含边界测试用例
+```
+
+#### 场景4：文档生成
+
+```
+为整个 src/api 目录生成API文档：
+- 每个endpoint的说明
+- 请求参数和响应格式
+- 错误码说明
+- 使用示例
+```
+
+### 性能优化建议
+
+#### 1. 使用合适的模型
+
+| 任务类型 | 推荐模型 | 原因 |
+|---------|---------|------|
+| 快速代码补全 | Claude Haiku | 响应最快 |
+| 日常开发 | Claude Sonnet | 性价比最高 |
+| 复杂架构设计 | Claude Opus | 推理能力最强 |
+| 隐私敏感任务 | Ollama本地 | 完全离线 |
+
+#### 2. 优化提示词
+
+**有效的提示词结构：**
+
+```markdown
+## 目标
+[具体要实现的功能]
+
+## 上下文
+[相关技术栈和项目结构]
+
+## 约束
+- [必须遵循的规范]
+- [必须满足的条件]
+
+## 验证
+[如何验证结果是否正确]
+```
+
+#### 3. 管理API成本
+
+```json
+{
+  "cline.costControl": {
+    "enabled": true,
+    "maxCostPerSession": 5.0,
+    "maxCostPerDay": 20.0,
+    "alertThreshold": 0.8,
+    "modelFallback": {
+      "enabled": true,
+      "fallbackModel": "claude-haiku-3-20250514",
+      "fallbackThreshold": 0.5
+    }
+  }
+}
+```
+
+### 安全最佳实践
+
+#### 1. API密钥保护
+
+> [!WARNING]
+> 切勿将API密钥硬编码在配置文件中或提交到Git仓库！
+
+**推荐做法：**
+
+```bash
+# 使用环境变量
+export ANTHROPIC_API_KEY="sk-ant-your-key"
+
+# 或使用VS Code的密钥存储功能
+```
+
+#### 2. 敏感代码处理
+
+```markdown
+# 处理敏感代码时
+1. 切换到本地模型（Ollama）
+2. 手动编写敏感部分
+3. 让AI处理非敏感逻辑
+```
+
+#### 3. 自动化审批
+
+```json
+{
+  "cline.autoApprove": {
+    "read": true,
+    "write": false,
+    "terminal": false,
+    "dangerous": false
+  }
+}
+```
+
+### 社区资源
+
+| 资源 | 链接 | 说明 |
+|------|------|------|
+| GitHub | https://github.com/cline/cline | 官方仓库 |
+| Discord | https://discord.gg/cline | 社区讨论 |
+| Twitter | @clinedev | 官方更新 |
+| Reddit | r/ClaudeDev | 用户分享 |
+
+### 下一步学习路径
+
+1. **第一周**：熟练使用基本对话和文件操作
+2. **第二周**：探索MCP服务器配置
+3. **第三周**：自定义提示词和工作流
+4. **第四周**：开发自定义工具
+5. **持续**：参与社区，分享经验
+
+> [!SUCCESS]
+> 恭喜完成Cline快速上手！继续探索，你将发现更多提升开发效率的技巧。建议加入官方Discord社区，与其他开发者交流使用心得。

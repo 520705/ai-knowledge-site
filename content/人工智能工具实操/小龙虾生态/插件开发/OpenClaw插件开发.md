@@ -1,992 +1,679 @@
 ---
-title: OpenClaw插件开发
-date: 2026-04-18
+title: OpenClaw 插件开发完全指南
+date: 2026-04-24
 tags:
-  - openclaw
+  - OpenClaw
   - 插件开发
-  - plugin
-  - python
-  - 事件处理
-  - 打包发布
-  - SDK
-  - 扩展
+  - Plugin
+  - Python
+  - 工具开发
 categories:
-  - 人工智能工具实操/小龙虾生态/插件开发
-alias: OpenClaw Plugin Development
+  - 人工智能工具实操
+  - 小龙虾生态
+description: 从零开始学习 OpenClaw 插件开发，手把手教你写一个天气查询插件。
 ---
 
-## 关键词
+# OpenClaw 插件开发完全指南
 
-| 关键词 | 说明 |
-|--------|------|
-| Plugin Architecture | 插件架构设计 |
-| Python SDK | Python 开发工具包 |
-| Event System | 事件系统核心 |
-| Hook Points | 钩子注入点 |
-| Plugin Manifest | 插件清单配置 |
-| Sandboxed Execution | 沙箱安全执行 |
-| Lifecycle Hooks | 生命周期钩子 |
-| Dependency Injection | 依赖注入模式 |
-| Semantic Versioning | 语义化版本控制 |
-| PyPI Distribution | Python 包分发 |
+> 想给 OpenClaw 增加新功能？或者想让 AI 能做特定的事？这篇教你从零开发一个插件。
 
 ---
 
-## 概述
+## 插件是什么？
 
-OpenClaw 的插件系统是实现其高度可扩展性的核心机制。通过标准化的插件接口，开发者可以为 OpenClaw 添加新的工具、能力、平台适配器、记忆处理器等组件，而无需修改核心代码。插件系统采用「发现-加载-注册」的三阶段架构，支持热加载、依赖管理和版本控制。
+### 一句话解释
 
-> [!note] 设计原则
-> OpenClaw 插件系统遵循「最小惊讶原则」：插件应该能以最少的配置工作，同时允许深度定制。核心 API 保持稳定，扩展点清晰文档化。
+**插件 = 给 AI 装一个"超能力"**
+
+就像手机装 App 获得新功能，OpenClaw 装插件获得新能力：
+- 装个天气插件 → AI 能查天气
+- 装个翻译插件 → AI 能翻译
+- 装个 GitHub 插件 → AI 能管代码
+
+### 为什么要有插件系统？
+
+因为 AI 本身不会这些事！
+
+GPT/Claude 只知道文字处理，但：
+- 查天气 → 需要调用天气 API
+- 读写文件 → 需要文件系统访问
+- 管 GitHub → 需要 GitHub API
+
+插件就是连接 AI 和这些"外部能力"的桥梁。
 
 ---
 
-## 插件架构设计
+## 插件是怎么工作的？
 
-### 核心抽象
+### 整体流程
 
-```python
-# openclaw/plugins/base.py
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Type, Callable
-from enum import Enum
-import asyncio
+```
+用户说："帮我查下北京天气"
 
-class PluginType(Enum):
-    """插件类型枚举"""
-    TOOL = "tool"                    # 工具类插件
-    PLATFORM = "platform"            # 平台适配器
-    MEMORY = "memory"                # 记忆处理器
-    MIDDLEWARE = "middleware"       # 中间件
-    TRANSFORMER = "transformer"     # 数据转换器
-    ANALYTICS = "analytics"          # 分析统计
+    │
+    ▼
 
-class PluginState(Enum):
-    """插件状态"""
-    DISCOVERED = "discovered"
-    LOADING = "loading"
-    LOADED = "loaded"
-    ACTIVE = "active"
-    DISABLED = "disabled"
-    ERROR = "error"
+OpenClaw 收到消息
 
-@dataclass
-class PluginMetadata:
-    """插件元数据"""
-    name: str
-    version: str
-    author: str
-    description: str
-    homepage: str = ""
-    license: str = "MIT"
-    plugin_type: PluginType
-    dependencies: List[str] = field(default_factory=list)
-    compatible_versions: str = ">=1.0.0"
-    config_schema: Dict[str, Any] = field(default_factory=dict)
-    permissions: List[str] = field(default_factory=list)
-    
-    def validate_version(self, current: str) -> bool:
-        """验证版本兼容性"""
-        # 使用 semver 规范验证
-        from packaging import version
-        try:
-            constraints = self.compatible_versions
-            return version.parse(current) in version.SpecifierSet(constraints)
-        except:
-            return True
+    │
+    ▼
 
-class PluginContext:
-    """插件运行时上下文"""
-    
-    def __init__(self, plugin: "Plugin", config: Dict[str, Any]):
-        self.plugin = plugin
-        self.config = config
-        self.state = PluginState.DISCOVERED
-        self.logger = self._setup_logger()
-        self._services: Dict[str, Any] = {}
-        
-    def register_service(self, name: str, service: Any):
-        """注册服务供其他插件使用"""
-        self._services[name] = service
-        
-    def get_service(self, name: str) -> Optional[Any]:
-        """获取已注册服务"""
-        return self._services.get(name)
-    
-    def emit_event(self, event_name: str, **kwargs):
-        """触发事件"""
-        return self.plugin.manager.emit_event(event_name, self, **kwargs)
-    
-    def _setup_logger(self):
-        import logging
-        logger = logging.getLogger(f"plugin.{self.plugin.metadata.name}")
-        logger.setLevel(logging.DEBUG)
-        return logger
+AI 大脑（Pi Agent）分析：
+"用户想查天气，我需要调用 weather 工具"
 
-class Plugin(ABC):
-    """插件基类"""
-    
-    def __init__(self):
-        self.metadata: Optional[PluginMetadata] = None
-        self.context: Optional[PluginContext] = None
-        self.manager: Optional["PluginManager"] = None
-    
-    @abstractmethod
-    async def on_load(self) -> bool:
-        """插件加载时调用，返回是否加载成功"""
-        pass
-    
-    @abstractmethod
-    async def on_unload(self):
-        """插件卸载时调用，用于清理资源"""
-        pass
-    
-    async def on_enable(self):
-        """插件启用时调用"""
-        pass
-    
-    async def on_disable(self):
-        """插件禁用时调用"""
-        pass
-    
-    def get_tools(self) -> List["Tool"]:
-        """返回插件提供的工具列表"""
-        return []
-    
-    def get_event_handlers(self) -> Dict[str, Callable]:
-        """返回事件处理器映射"""
-        return {}
+    │
+    ▼
+
+OpenClaw 调用插件里的 weather 工具
+
+    │
+    ▼
+
+weather 插件调用天气 API
+
+    │
+    ▼
+
+API 返回天气数据
+
+    │
+    ▼
+
+插件把数据返回给 AI
+
+    │
+    ▼
+
+AI 把结果告诉用户
 ```
 
-### 插件管理器
+### 插件的组成
 
-```python
-# openclaw/plugins/manager.py
-import importlib
-import importlib.util
-import sys
-import json
-from pathlib import Path
-from typing import Dict, List, Optional, Type, Set
-from concurrent.futures import ThreadPoolExecutor
-
-class PluginManager:
-    """插件管理器"""
-    
-    def __init__(self, plugin_dir: Path):
-        self.plugin_dir = plugin_dir
-        self.plugins: Dict[str, Plugin] = {}
-        self.load_order: List[str] = []
-        self.event_handlers: Dict[str, List[tuple]] = {}
-        self.hooks: Dict[str, List[Callable]] = {}
-        self.dependencies: Dict[str, Set[str]] = {}
-        self.executor = ThreadPoolExecutor(max_workers=4)
-        
-    async def discover_plugins(self) -> List[PluginMetadata]:
-        """发现所有可用插件"""
-        discovered = []
-        
-        for plugin_path in self.plugin_dir.iterdir():
-            if not plugin_path.is_dir():
-                continue
-                
-            manifest_path = plugin_path / "plugin.json"
-            if manifest_path.exists():
-                with open(manifest_path) as f:
-                    data = json.load(f)
-                    metadata = PluginMetadata(**data)
-                    discovered.append(metadata)
-                    
-        return discovered
-    
-    async def load_plugin(
-        self, 
-        metadata: PluginMetadata,
-        config: Dict[str, Any] = None
-    ) -> Optional[Plugin]:
-        """加载单个插件"""
-        
-        plugin_path = self.plugin_dir / metadata.name
-        spec = importlib.util.spec_from_file_location(
-            metadata.name,
-            plugin_path / "__init__.py"
-        )
-        
-        if not spec or not spec.loader:
-            return None
-            
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[metadata.name] = module
-        spec.loader.exec_module(module)
-        
-        # 获取插件类
-        plugin_class = getattr(module, "Plugin", None)
-        if not plugin_class:
-            return None
-            
-        # 实例化并初始化
-        plugin = plugin_class()
-        plugin.metadata = metadata
-        plugin.manager = self
-        
-        # 解析依赖
-        self._resolve_dependencies(metadata)
-        
-        # 加载依赖
-        for dep in metadata.dependencies:
-            if dep not in self.plugins:
-                dep_meta = self._find_metadata(dep)
-                if dep_meta:
-                    await self.load_plugin(dep_meta)
-        
-        # 创建上下文
-        plugin.context = PluginContext(
-            plugin, 
-            config or {}
-        )
-        
-        # 执行加载钩子
-        if await plugin.on_load():
-            self.plugins[metadata.name] = plugin
-            self.load_order.append(metadata.name)
-            
-            # 注册事件处理器
-            self._register_event_handlers(plugin)
-            
-            return plugin
-        
-        return None
-    
-    def _resolve_dependencies(self, metadata: PluginMetadata):
-        """解析插件依赖"""
-        self.dependencies[metadata.name] = set(metadata.dependencies)
-    
-    def _register_event_handlers(self, plugin: Plugin):
-        """注册插件事件处理器"""
-        handlers = plugin.get_event_handlers()
-        for event_name, handler in handlers.items():
-            if event_name not in self.event_handlers:
-                self.event_handlers[event_name] = []
-            self.event_handlers[event_name].append(
-                (plugin.metadata.name, handler)
-            )
-    
-    async def emit_event(self, event_name: str, context: PluginContext, **kwargs):
-        """触发事件并调用所有处理器"""
-        
-        if event_name not in self.event_handlers:
-            return
-            
-        for plugin_name, handler in self.event_handlers[event_name]:
-            plugin = self.plugins.get(plugin_name)
-            if plugin and context.config.get(f"{plugin_name}_enabled", True):
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(context, **kwargs)
-                    else:
-                        handler(context, **kwargs)
-                except Exception as e:
-                    context.logger.error(f"Event handler error: {e}")
-    
-    def register_hook(self, hook_name: str, callback: Callable):
-        """注册钩子函数"""
-        if hook_name not in self.hooks:
-            self.hooks[hook_name] = []
-        self.hooks[hook_name].append(callback)
-    
-    async def call_hooks(self, hook_name: str, *args, **kwargs) -> List[Any]:
-        """调用所有钩子函数"""
-        results = []
-        for callback in self.hooks.get(hook_name, []):
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    result = await callback(*args, **kwargs)
-                else:
-                    result = callback(*args, **kwargs)
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Hook error in {hook_name}: {e}")
-        return results
+```
+my_plugin/
+├── plugin.json      # 插件信息
+├── __init__.py    # 入口文件
+├── tools/          # 工具目录
+│   ├── __init__.py
+│   └── weather.py  # 天气工具
+└── handlers/        # 事件处理（可选）
+    └── event.py
 ```
 
 ---
 
-## Python 插件模板
+## 开始开发：做一个天气插件
 
-### 插件目录结构
+### 第一步：创建项目结构
 
-```
-plugins/
-└── my_custom_tool/
-    ├── __init__.py          # 插件入口
-    ├── plugin.json          # 插件清单
-    ├── config.yaml          # 默认配置
-    ├── tools/               # 工具子目录
-    │   ├── __init__.py
-    │   └── custom_tool.py
-    ├── handlers/            # 事件处理
-    │   └── event_handler.py
-    └── requirements.txt     # 依赖
+```bash
+# 创建插件目录
+mkdir -p my_weather_plugin/tools
+mkdir -p my_weather_plugin/handlers
+
+# 进入目录
+cd my_weather_plugin
 ```
 
-### plugin.json 清单文件
+### 第二步：创建 plugin.json
+
+这是插件的"身份证"：
 
 ```json
 {
-  "name": "my_custom_tool",
-  "version": "1.2.0",
-  "author": "Developer Name",
-  "description": "A custom tool plugin for OpenClaw",
-  "homepage": "https://github.com/user/openclaw-my-tool",
+  "name": "my-weather",
+  "version": "1.0.0",
+  "description": "查询天气的插件",
+  "author": "你的名字",
   "license": "MIT",
-  "plugin_type": "tool",
-  "dependencies": [],
-  "compatible_versions": ">=1.5.0,<3.0.0",
+
   "config_schema": {
-    "type": "object",
-    "properties": {
-      "api_key": {
-        "type": "string",
-        "description": "API key for the service",
-        "secret": true
-      },
-      "default_timeout": {
-        "type": "integer",
-        "default": 30
-      },
-      "enable_cache": {
-        "type": "boolean",
-        "default": true
-      }
+    "api_key": {
+      "type": "string",
+      "required": true,
+      "description": "天气 API 的 Key"
     },
-    "required": ["api_key"]
-  },
-  "permissions": [
-    "network:external",
-    "storage:read",
-    "storage:write"
-  ],
-  "hooks": [
-    "before_agent_run",
-    "after_agent_run",
-    "on_message_received"
-  ]
+    "default_city": {
+      "type": "string",
+      "default": "北京",
+      "description": "默认查询城市"
+    }
+  }
 }
 ```
 
-### 插件主文件模板
+### 第三步：写工具代码
+
+创建 `tools/__init__.py`：
 
 ```python
-# plugins/my_custom_tool/__init__.py
-"""
-My Custom Tool Plugin for OpenClaw
+from .weather import WeatherTool
 
-This plugin provides [description of what the plugin does].
-"""
-
-from openclaw.plugins.base import (
-    Plugin, PluginType, PluginMetadata
-)
-from typing import List, Dict, Any, Callable, Optional
-
-__version__ = "1.2.0"
-
-# 导出插件类和工具类
-from .tools.custom_tool import CustomTool
-
-class Plugin(Plugin):
-    """My Custom Tool Plugin"""
-    
-    METADATA = PluginMetadata(
-        name="my_custom_tool",
-        version=__version__,
-        author="Developer Name",
-        description="Provides custom tool capabilities",
-        homepage="https://github.com/user/openclaw-my-tool",
-        plugin_type=PluginType.TOOL,
-        dependencies=[],  # 依赖其他插件时填写
-        config_schema={
-            "type": "object",
-            "properties": {
-                "api_key": {"type": "string", "secret": True},
-                "default_timeout": {"type": "integer", "default": 30}
-            },
-            "required": ["api_key"]
-        }
-    )
-    
-    def __init__(self):
-        super().__init__()
-        self._tools: List[CustomTool] = []
-        self._initialized = False
-    
-    async def on_load(self) -> bool:
-        """插件加载时的初始化逻辑"""
-        
-        # 验证配置
-        api_key = self.context.config.get("api_key")
-        if not api_key:
-            self.context.logger.error("Missing required config: api_key")
-            return False
-        
-        # 初始化工具实例
-        self._tools = [
-            CustomTool(
-                name="custom_action",
-                api_key=api_key,
-                timeout=self.context.config.get("default_timeout", 30)
-            )
-        ]
-        
-        # 注册事件处理器
-        self.context.register_service(
-            "custom_client",
-            self._create_client()
-        )
-        
-        self._initialized = True
-        self.context.logger.info(
-            f"Plugin loaded with {len(self._tools)} tools"
-        )
-        return True
-    
-    async def on_unload(self):
-        """插件卸载时的清理逻辑"""
-        
-        # 清理资源
-        if self._tools:
-            for tool in self._tools:
-                await tool.cleanup()
-        
-        self._initialized = False
-        self.context.logger.info("Plugin unloaded")
-    
-    async def on_enable(self):
-        """插件启用时的逻辑"""
-        self.context.logger.info("Plugin enabled")
-    
-    async def on_disable(self):
-        """插件禁用时的逻辑"""
-        self.context.logger.info("Plugin disabled")
-    
-    def get_tools(self) -> List:
-        """返回插件提供的所有工具"""
-        return self._tools
-    
-    def get_event_handlers(self) -> Dict[str, Callable]:
-        """返回事件处理器映射"""
-        return {
-            "on_message_received": self._handle_message,
-            "before_agent_run": self._pre_agent_run,
-            "after_agent_run": self._post_agent_run
-        }
-    
-    # 事件处理方法
-    async def _handle_message(self, context, message):
-        """处理收到的消息"""
-        pass
-    
-    async def _pre_agent_run(self, context, agent_input):
-        """Agent 运行前钩子"""
-        pass
-    
-    async def _post_agent_run(self, context, agent_input, agent_output):
-        """Agent 运行后钩子"""
-        pass
-    
-    def _create_client(self):
-        """创建客户端实例"""
-        # 实现客户端创建逻辑
-        pass
+__all__ = ["WeatherTool"]
 ```
 
----
-
-## 工具定义与实现
+创建 `tools/weather.py`：
 
 ```python
-# plugins/my_custom_tool/tools/custom_tool.py
-from openclaw.tools.base import Tool, ToolResult
+from openclaw.tools import Tool, ToolResult
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
 import httpx
+from typing import Optional
 
-class CustomToolInput(BaseModel):
-    """工具输入参数模型"""
-    query: str = Field(description="查询内容")
-    max_results: int = Field(default=10, description="最大返回结果数")
-    filters: Optional[Dict[str, Any]] = Field(default=None, description="过滤条件")
+# 定义输入参数
+class WeatherInput(BaseModel):
+    """天气查询的输入参数"""
+    city: str = Field(description="城市名称，比如'北京'、'上海'")
+    units: str = Field(default="celsius", description="温度单位：celsius（摄氏度）或 fahrenheit（华氏度）")
 
-class CustomTool(Tool):
-    """自定义工具实现"""
-    
-    name = "custom_action"
-    description = "执行自定义操作的工具，支持查询和处理"
-    
-    input_model = CustomToolInput
-    output_model = ToolResult
-    
-    def __init__(
-        self,
-        name: str,
-        api_key: str,
-        timeout: int = 30,
-        cache_enabled: bool = True
-    ):
-        super().__init__(name)
+# 定义工具类
+class WeatherTool(Tool):
+    """天气查询工具"""
+
+    name = "weather"
+    description = "查询指定城市的天气信息，返回温度、天气状况、湿度等"
+    input_model = WeatherInput
+
+    def __init__(self, api_key: str):
+        super().__init__()
         self.api_key = api_key
-        self.timeout = timeout
-        self.cache_enabled = cache_enabled
-        self._client: Optional[httpx.AsyncClient] = None
-        self._cache: Dict[str, Any] = {}
-    
-    async def _ensure_client(self):
-        """确保 HTTP 客户端已初始化"""
-        if not self._client:
-            self._client = httpx.AsyncClient(
-                base_url="https://api.example.com",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                timeout=self.timeout
-            )
-    
-    async def execute(self, input_data: CustomToolInput) -> ToolResult:
-        """执行工具逻辑"""
-        
-        await self._ensure_client()
-        
-        # 检查缓存
-        cache_key = f"{input_data.query}:{input_data.max_results}"
-        if self.cache_enabled and cache_key in self._cache:
-            return ToolResult(
-                success=True,
-                data=self._cache[cache_key],
-                from_cache=True
-            )
-        
+        self.base_url = "https://api.openweathermap.org/data/2.5"
+
+    async def execute(self, input_data: WeatherInput) -> ToolResult:
+        """执行天气查询"""
+
         try:
-            # 调用外部 API
-            response = await self._client.post(
-                "/search",
-                json={
-                    "query": input_data.query,
-                    "limit": input_data.max_results,
-                    "filters": input_data.filters
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            # 更新缓存
-            if self.cache_enabled:
-                self._cache[cache_key] = data
-            
+            # 调用天气 API
+            params = {
+                "q": input_data.city,
+                "appid": self.api_key,
+                "units": "metric" if input_data.units == "celsius" else "imperial"
+            }
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/weather",
+                    params=params
+                )
+                response.raise_for_status()
+                data = response.json()
+
+            # 解析结果
+            temp = data["main"]["temp"]
+            weather = data["weather"][0]["description"]
+            humidity = data["main"]["humidity"]
+            city = data["name"]
+
+            # 构建返回
+            unit_symbol = "°C" if input_data.units == "celsius" else "°F"
+            result = f"{city}当前天气：\n"
+            result += f"- 温度：{temp}{unit_symbol}\n"
+            result += f"- 天气：{weather}\n"
+            result += f"- 湿度：{humidity}%"
+
             return ToolResult(
                 success=True,
-                data=data,
+                output=result,
                 metadata={
-                    "api_version": "v1",
-                    "result_count": len(data.get("results", []))
+                    "city": city,
+                    "temperature": temp,
+                    "weather": weather,
+                    "humidity": humidity
                 }
             )
-            
+
         except httpx.HTTPStatusError as e:
             return ToolResult(
                 success=False,
-                error=f"HTTP Error: {e.response.status_code}",
-                error_code="HTTP_ERROR"
+                error=f"API 请求失败：{e.response.status_code}"
             )
         except Exception as e:
             return ToolResult(
                 success=False,
-                error=str(e),
-                error_code="UNKNOWN_ERROR"
+                error=f"查询失败：{str(e)}"
             )
-    
-    async def cleanup(self):
-        """清理资源"""
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._cache.clear()
 ```
 
----
+### 第四步：创建入口文件
 
-## 事件处理系统
-
-### 内置事件类型
-
-| 事件名 | 触发时机 | 传递参数 |
-|--------|----------|----------|
-| `on_startup` | 系统启动完成 | - |
-| `on_shutdown` | 系统关闭前 | - |
-| `on_message_received` | 收到新消息 | `message` |
-| `on_message_sent` | 消息发送后 | `message` |
-| `before_agent_run` | Agent 执行前 | `input` |
-| `after_agent_run` | Agent 执行后 | `input`, `output` |
-| `on_error` | 发生错误时 | `error`, `context` |
-| `on_tool_call` | 工具调用时 | `tool`, `input` |
-| `on_user_authenticated` | 用户认证后 | `user` |
-
-### 事件处理器示例
+创建 `__init__.py`：
 
 ```python
-# plugins/my_custom_tool/handlers/event_handler.py
+from openclaw.plugins import Plugin
+from .tools import WeatherTool
+from typing import List
 
-class MyEventHandler:
-    """自定义事件处理器"""
-    
-    def __init__(self, plugin_context):
-        self.context = plugin_context
-    
-    async def handle_message_received(self, message):
-        """处理收到的消息，可用于预处理、过滤等"""
-        
-        # 消息预处理
-        if self._should_block(message):
-            return {"blocked": True, "reason": "spam"}
-        
-        # 消息增强
-        if self._should_enhance(message):
-            enhanced = await self._enhance_message(message)
-            return {"enhanced": enhanced}
-        
-        return None  # 继续正常流程
-    
-    async def handle_before_agent_run(self, agent_input):
-        """Agent 运行前的预处理"""
-        
-        # 添加上下文
-        agent_input.context["custom_field"] = self._get_context_value()
-        
-        # 验证输入
-        if not self._validate_input(agent_input):
-            raise ValueError("Invalid input")
-        
-        return agent_input
-    
-    async def handle_after_agent_run(self, agent_input, agent_output):
-        """Agent 运行后的后处理"""
-        
-        # 记录分析数据
-        await self._log_metrics(agent_input, agent_output)
-        
-        # 修改输出
-        if self._should_modify_output(agent_output):
-            agent_output = self._modify_output(agent_output)
-        
-        return agent_output
-    
-    async def handle_error(self, error, context):
-        """全局错误处理"""
-        
-        self.context.logger.error(f"Error occurred: {error}")
-        
-        # 发送告警通知
-        await self._send_alert(error, context)
-        
-        # 返回友好错误消息
-        return {
-            "user_message": "发生了一些问题，请稍后再试。",
-            "error_id": context.get("error_id")
-        }
-    
-    def _should_block(self, message) -> bool:
-        """判断是否应阻止消息"""
-        return False
-    
-    def _should_enhance(self, message) -> bool:
-        """判断是否应增强消息"""
-        return False
-    
-    async def _enhance_message(self, message):
-        """增强消息内容"""
-        pass
-    
-    def _validate_input(self, agent_input) -> bool:
-        """验证输入"""
+class Plugin(Plugin):
+    """天气插件"""
+
+    name = "my-weather"
+    version = "1.0.0"
+    description = "查询天气的插件"
+
+    def __init__(self):
+        super().__init__()
+        self._weather_tool = None
+
+    async def on_load(self) -> bool:
+        """插件加载时调用"""
+
+        # 获取 API Key
+        api_key = self.context.config.get("api_key")
+        if not api_key:
+            self.context.logger.error("缺少 api_key 配置")
+            return False
+
+        # 初始化工具
+        self._weather_tool = WeatherTool(api_key=api_key)
+
+        self.context.logger.info("天气插件加载成功")
         return True
-    
-    async def _log_metrics(self, input_data, output_data):
-        """记录指标"""
-        pass
-    
-    def _should_modify_output(self, output) -> bool:
-        """判断是否应修改输出"""
-        return False
-    
-    def _modify_output(self, output):
-        """修改输出"""
-        return output
-    
-    async def _send_alert(self, error, context):
-        """发送告警"""
-        pass
-    
-    def _get_context_value(self):
-        """获取上下文值"""
-        return None
+
+    def get_tools(self) -> List:
+        """返回插件提供的工具"""
+        return [self._weather_tool] if self._weather_tool else []
 ```
 
 ---
 
-## 沙箱安全执行
+## 插件配置文件
 
-```python
-# openclaw/plugins/sandbox.py
-import sys
-import resource
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Dict, Any
+### plugin.json 完整示例
 
-class PluginSandbox:
-    """插件沙箱环境"""
-    
-    def __init__(self, plugin_name: str):
-        self.plugin_name = plugin_name
-        self.work_dir = Path(tempfile.mkdtemp(prefix=f"openclaw_{plugin_name}_"))
-        self._setup_limits()
-    
-    def _setup_limits(self):
-        """设置资源限制"""
-        
-        # 内存限制：500MB
-        memory_limit = 500 * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
-        
-        # CPU 时间限制：60秒
-        resource.setrlimit(resource.RLIMIT_CPU, (60, 60))
-        
-        # 文件大小限制：100MB
-        resource.setrlimit(
-            resource.RLIMIT_FSIZE, 
-            (100 * 1024 * 1024, 100 * 1024 * 1024)
-        )
-        
-        # 进程数限制：10
-        resource.setrlimit(resource.RLIMIT_NPROC, (10, 10))
-    
-    def __enter__(self):
-        """进入沙箱上下文"""
-        self.old_cwd = Path.cwd()
-        sys.path.insert(0, str(self.work_dir))
-        self.old_environ = dict(__import__("os").environ)
-        
-        # 隔离环境变量
-        import os
-        os.environ["SANDBOX_MODE"] = "true"
-        os.environ["PLUGIN_NAME"] = self.plugin_name
-        
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """退出沙箱上下文"""
-        sys.path.remove(str(self.work_dir))
-        self.old_cwd.chdir()
-        
-        # 恢复环境变量
-        import os
-        os.environ.clear()
-        os.environ.update(self.old_environ)
-        
-        # 清理临时目录
-        shutil.rmtree(self.work_dir, ignore_errors=True)
-        
-        return False  # 不抑制异常
-```
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "author": "你的名字",
+  "description": "插件描述",
 
----
+  "license": "MIT",
+  "homepage": "https://github.com/you/my-plugin",
 
-## 插件打包与发布
+  "dependencies": [],
+  "compatible_versions": ">=2.0.0",
 
-### pyproject.toml 配置
-
-```toml
-# plugins/my_custom_tool/pyproject.toml
-[build-system]
-requires = ["hatchling", "hatch-requirements-txt"]
-build-backend = "hatchling.build"
-
-[project]
-name = "openclaw-my-custom-tool"
-version = "1.2.0"
-description = "Custom tool plugin for OpenClaw"
-readme = "README.md"
-license = "MIT"
-requires-python = ">=3.10"
-authors = [
-    { name = "Developer Name", email = "dev@example.com" }
-]
-keywords = ["openclaw", "plugin", "ai", "tool"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-]
-
-dependencies = [
-    "httpx>=0.25.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "ruff>=0.1.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/user/openclaw-my-tool"
-Repository = "https://github.com/user/openclaw-my-tool"
-Issues = "https://github.com/user/openclaw-my-tool/issues"
-
-[tool.hatch.build.targets.wheel]
-packages = ["."]
-```
-
-### 发布到 PyPI
-
-```bash
-# 安装发布工具
-pip install build twine
-
-# 构建 wheel
-python -m build
-
-# 发布到 Test PyPI (测试)
-python -m twine upload --repository testpypi dist/*
-
-# 发布到正式 PyPI
-python -m twine upload dist/*
-```
-
-### OpenClaw 插件市场
-
-```yaml
-# ~/.openclaw/plugins.yaml
-plugin_marketplace:
-  enabled: true
-  sources:
-    - name: "official"
-      url: "https://plugins.openclaw.dev/registry.json"
-    - name: "community"
-      url: "https://community.openclaw.dev/plugins.json"
-  
-  installed:
-    - name: "my_custom_tool"
-      version: "1.2.0"
-      source: "community"
-```
-
-```bash
-# 安装插件命令
-openclaw plugin install my_custom_tool
-openclaw plugin install my_custom_tool==1.2.0
-openclaw plugin install --source github user/repo
-
-# 更新插件
-openclaw plugin update my_custom_tool
-openclaw plugin update --all
-
-# 卸载插件
-openclaw plugin uninstall my_custom_tool
-
-# 列出已安装插件
-openclaw plugin list
-```
-
-> [!tip] 开发调试技巧
-> 使用 `openclaw plugin dev my_custom_tool` 启动开发模式，支持热重载和实时日志。
-
----
-
-## 插件测试框架
-
-```python
-# plugins/my_custom_tool/tests/test_tool.py
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
-@pytest.fixture
-def mock_context():
-    """模拟插件上下文"""
-    context = MagicMock()
-    context.config = {"api_key": "test_key", "default_timeout": 30}
-    context.logger = MagicMock()
-    context.register_service = MagicMock()
-    return context
-
-@pytest.fixture
-async def tool(mock_context):
-    """创建测试工具实例"""
-    with patch("httpx.AsyncClient"):
-        from my_custom_tool.tools.custom_tool import CustomTool
-        
-        tool = CustomTool(
-            name="test_action",
-            api_key="test_key",
-            timeout=30
-        )
-        tool.context = mock_context
-        return tool
-
-@pytest.mark.asyncio
-async def test_tool_execute_success(tool):
-    """测试工具成功执行"""
-    
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    mock_response.json.return_value = {
-        "results": [{"id": 1, "name": "test"}]
+  "config_schema": {
+    "api_key": {
+      "type": "string",
+      "required": true,
+      "secret": true,
+      "description": "API 密钥"
+    },
+    "timeout": {
+      "type": "integer",
+      "default": 30,
+      "description": "超时时间（秒）"
     }
-    
-    with patch.object(tool, "_client") as mock_client:
-        mock_client.post = AsyncMock(return_value=mock_response)
-        
-        from my_custom_tool.tools.custom_tool import CustomToolInput
-        input_data = CustomToolInput(
-            query="test query",
-            max_results=5
-        )
-        
-        result = await tool.execute(input_data)
-        
-        assert result.success is True
-        assert result.data["results"][0]["id"] == 1
+  },
 
-@pytest.mark.asyncio
-async def test_tool_cache_hit(tool):
-    """测试缓存命中"""
-    
-    tool._cache["test:5"] = {"cached": True}
-    tool.cache_enabled = True
-    
-    from my_custom_tool.tools.custom_tool import CustomToolInput
-    input_data = CustomToolInput(query="test", max_results=5)
-    
-    result = await tool.execute(input_data)
-    
-    assert result.from_cache is True
+  "permissions": [
+    "network:external"
+  ]
+}
 ```
 
-> [!summary] 关键要点
-> 1. **标准化接口**：所有插件继承 `Plugin` 基类，实现统一生命周期
-> 2. **清单驱动**：通过 `plugin.json` 声明元数据和依赖
-> 3. **事件系统**：支持丰富的钩子点，实现深度集成
-> 4. **沙箱隔离**：资源限制保护系统安全
-> 5. **语义版本**：遵循 SemVer 规范管理版本兼容性
+### 配置项类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| `string` | 字符串 | `"hello"` |
+| `integer` | 整数 | `123` |
+| `boolean` | 布尔值 | `true` |
+| `array` | 数组 | `["a", "b"]` |
+| `object` | 对象 | `{"key": "value"}` |
 
 ---
 
-## 相关文档
+## 工具类详解
 
-- [[../多平台集成/OpenClaw多平台集成]] - 创建平台适配器插件
-- [[../记忆系统/OpenClaw记忆系统]] - 记忆处理器插件开发
-- [[../高级用法/OpenClaw高级用法]] - 工作流与自定义工具
-- [[OpenClaw概览]] - 系统整体架构
+### 基础工具类
+
+```python
+from openclaw.tools import Tool, ToolResult
+
+class MyTool(Tool):
+    name = "my_tool"           # 工具名（AI 会看到这个）
+    description = "工具描述"   # AI 根据这个决定何时调用
+    input_model = MyInput       # 输入参数模型
+
+    async def execute(self, input_data: MyInput) -> ToolResult:
+        # 工具逻辑
+        return ToolResult(
+            success=True,       # 是否成功
+            output="结果",       # 成功时返回
+            metadata={}          # 额外数据
+        )
+```
+
+### ToolResult 返回结构
+
+```python
+ToolResult(
+    success=True,              # 必须：是否成功
+    output="结果内容",         # 成功时返回的内容
+    error="错误信息",          # 失败时返回的错误
+    error_code="ERROR_CODE",   # 错误码（可选）
+    metadata={                 # 额外元数据（可选）
+        "extra_info": "..."
+    }
+)
+```
+
+### 输入参数模型
+
+用 Pydantic 定义输入参数：
+
+```python
+from pydantic import BaseModel, Field
+
+class SearchInput(BaseModel):
+    """搜索工具的输入参数"""
+
+    query: str = Field(
+        description="搜索关键词",
+        min_length=1,
+        max_length=200
+    )
+
+    limit: int = Field(
+        default=10,
+        description="返回结果数量",
+        ge=1,
+        le=100
+    )
+
+    language: str = Field(
+        default="zh",
+        description="搜索语言"
+    )
+```
+
+---
+
+## 事件处理
+
+### 什么是事件处理？
+
+除了提供工具，插件还能"监听"某些事件：
+
+```python
+class MyPlugin(Plugin):
+    def get_event_handlers(self):
+        return {
+            "on_message_received": self.handle_message,
+            "on_agent_start": self.handle_agent_start,
+            "on_agent_end": self.handle_agent_end,
+        }
+
+    async def handle_message(self, message):
+        """收到消息时调用"""
+        pass
+
+    async def handle_agent_start(self, context):
+        """AI 开始处理时调用"""
+        pass
+
+    async def handle_agent_end(self, context, response):
+        """AI 处理完成时调用"""
+        pass
+```
+
+### 可用的事件
+
+| 事件 | 触发时机 |
+|------|----------|
+| `on_startup` | OpenClaw 启动时 |
+| `on_shutdown` | OpenClaw 关闭时 |
+| `on_message_received` | 收到用户消息 |
+| `on_message_sent` | 发送消息后 |
+| `on_agent_start` | AI 开始处理 |
+| `on_agent_end` | AI 处理完成 |
+| `on_error` | 发生错误时 |
+| `on_tool_call` | 调用工具时 |
+
+---
+
+## 本地测试插件
+
+### 方式一：本地安装
+
+```bash
+# 进入插件目录
+cd my_weather_plugin
+
+# 本地安装
+openclaw skill install .
+
+# 查看是否安装成功
+openclaw skill list | grep weather
+
+# 测试
+openclaw skill test my-weather
+
+# 卸载
+openclaw skill uninstall my-weather
+```
+
+### 方式二：开发模式
+
+```bash
+# 启动开发模式（会自动重载）
+openclaw dev --plugin ./my_weather_plugin
+
+# 查看日志
+openclaw logs --follow
+```
+
+---
+
+## 发布插件到 ClawHub
+
+### 第一步：注册 ClawHub 账号
+
+访问 https://clawhub.openclaw.ai 注册账号。
+
+### 第二步：准备发布
+
+```bash
+# 确保版本号正确
+# 修改 plugin.json 里的 version
+
+# 打包
+cd ..
+tar -czf my-weather-1.0.0.tar.gz my_weather_plugin/
+
+# 发布
+openclaw skill publish --path ./my-weather-1.0.0.tar.gz
+```
+
+### 第三步：审核
+
+提交后需要通过安全审核：
+- VirusTotal 扫描
+- 代码审查
+- 功能测试
+
+审核通过后，你的插件就会出现在 ClawHub 上！
+
+---
+
+## 完整示例：翻译插件
+
+### 项目结构
+
+```
+my-translate/
+├── plugin.json
+├── __init__.py
+└── tools/
+    ├── __init__.py
+    └── translate.py
+```
+
+### plugin.json
+
+```json
+{
+  "name": "my-translate",
+  "version": "1.0.0",
+  "description": "翻译插件，支持多种语言互译",
+  "author": "你",
+  "config_schema": {
+    "api_key": {
+      "type": "string",
+      "required": true,
+      "description": "翻译 API 密钥"
+    },
+    "default_target": {
+      "type": "string",
+      "default": "zh",
+      "description": "默认目标语言"
+    }
+  }
+}
+```
+
+### translate.py
+
+```python
+from openclaw.tools import Tool, ToolResult
+from pydantic import BaseModel, Field
+import httpx
+
+class TranslateInput(BaseModel):
+    text: str = Field(description="要翻译的文本")
+    source: str = Field(default="auto", description="源语言，auto 表示自动检测")
+    target: str = Field(default="zh", description="目标语言代码，如 zh/en/ja")
+
+class TranslateTool(Tool):
+    name = "translate"
+    description = "将文本从一种语言翻译到另一种语言"
+    input_model = TranslateInput
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    async def execute(self, input_data: TranslateInput) -> ToolResult:
+        try:
+            # 这里用免费的 LibreTranslate API
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://libretranslate.com/translate",
+                    json={
+                        "q": input_data.text,
+                        "source": input_data.source,
+                        "target": input_data.target,
+                        "api_key": self.api_key
+                    }
+                )
+                data = response.json()
+
+            translated = data["translatedText"]
+
+            return ToolResult(
+                success=True,
+                output=f"原文：{input_data.text}\n翻译：{translated}"
+            )
+
+        except Exception as e:
+            return ToolResult(success=False, error=str(e))
+```
+
+### __init__.py
+
+```python
+from openclaw.plugins import Plugin
+from .tools import TranslateTool
+from typing import List
+
+class Plugin(Plugin):
+    name = "my-translate"
+    version = "1.0.0"
+
+    def __init__(self):
+        self._translate_tool = None
+
+    async def on_load(self) -> bool:
+        api_key = self.context.config.get("api_key", "")
+        self._translate_tool = TranslateTool(api_key=api_key)
+        return True
+
+    def get_tools(self) -> List:
+        return [self._translate_tool] if self._translate_tool else []
+```
+
+---
+
+## 常见问题
+
+### Q: 插件装上了但不管用？
+
+1. **检查日志**
+```bash
+docker logs openclaw 2>&1 | grep -i error
+```
+
+2. **检查配置**
+```bash
+openclaw skill config my-weather
+```
+
+3. **重启服务**
+```bash
+docker restart openclaw
+```
+
+### Q: 工具返回的数据 AI 看不懂？
+
+确保返回的是**纯文本**，不要返回复杂对象：
+
+```python
+# ✅ 好例子
+return ToolResult(success=True, output="北京今天晴天，22度")
+
+# ❌ 坏例子
+return ToolResult(success=True, output=str({"temp": 22, "weather": "晴"}))
+```
+
+### Q: 工具总是被 AI 忽略？
+
+检查 description 是否描述清楚：
+
+```python
+# ✅ 好描述
+description = "查询天气，返回温度、湿度、天气状况"
+
+# ❌ 模糊描述
+description = "查询信息"
+```
+
+### Q: 想让工具支持更多参数？
+
+用 Pydantic 的 Field 添加更多参数和校验：
+
+```python
+from pydantic import BaseModel, Field
+
+class SearchInput(BaseModel):
+    query: str = Field(..., description="搜索关键词")
+    limit: int = Field(default=10, ge=1, le=100, description="结果数量")
+    safe_search: bool = Field(default=True, description="是否安全搜索")
+```
+
+---
+
+## 下一步
+
+学会了插件开发？继续探索：
+
+| 教程 | 内容 |
+|------|------|
+| [[ClawHub技能市场]] | 学习发布和分享插件 |
+| [[OpenClaw架构解析]] | 了解插件怎么接入系统 |
+| [[OpenClaw高级用法]] | 更多高级技巧 |
+
+---
+
+**文档状态**：插件开发指南  
+**更新时间**：2026年4月

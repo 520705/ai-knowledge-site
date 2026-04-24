@@ -1,679 +1,1232 @@
-# Context Engineering - 上下文工程
+---
+title: Context Engineering 上下文工程
+date: 2026-04-24
+tags:
+  - context-engineering
+  - prompt-engineering
+  - llm
+  - information-architecture
+  - prompt-optimization
+categories:
+  - 人工智能
+  - LLM应用
+---
 
-> 上一次更新：2026年4月
-> 
-> 相关主题：[[LLM大语言模型]] | [[RAG检索增强生成]] | [[Prompt Engineering提示工程]] | [[AI Agent人工智能体]]
+> [!abstract] 摘要
+> Context Engineering（上下文工程）是2025-2026年AI开发领域最重要的技术之一。这篇文章为零基础读者详细讲解：什么是Context Engineering、它和Prompt Engineering有什么区别、为什么上下文质量决定了AI输出的质量、以及如何系统性地设计和优化AI的上下文环境。文章包含大量代码示例和实战技巧，看完你就能开始在实际项目中应用Context Engineering了。
 
-## 概述
+## 先理解一个场景：你和AI的对话出了什么问题？
 
-**Context Engineering（上下文工程）** 是2025-2026年AI开发领域最重要的技术 discipline，它代表了一种范式转变：从单纯优化单个提示词，转向系统性地设计和维护AI模型所接收的完整信息环境。
+### 想象一个对话
 
-在生产级AI系统中，上下文窗口80-90%的内容由检索文档、对话历史和工具结果填充，而提示词本身仅占很小一部分。这解释了为什么上下文工程的质量往往比选择哪个模型更能决定AI输出的质量。
+你打开ChatGPT，问了一个问题：
+
+```
+你：帮我写一个用户登录功能
+AI：好的，以下是代码...
+
+你：不对，要用JWT
+AI：好的，以下是使用JWT的代码...
+
+你：还要支持微信登录
+AI：好的，以下是支持微信登录的代码...
+
+你：我之前说的那个电商项目，不是新项目
+AI：抱歉，我不知道你的电商项目...
+```
+
+**问题出在哪？**
+
+- AI"忘记"了你之前说的"电商项目"
+- AI不知道你的技术栈偏好
+- AI不清楚你的代码规范
+
+**这就是Context Engineering要解决的问题！**
 
 ---
 
-## 目录
+## 一、什么是Context Engineering？
 
-1. [[#核心概念与定义]]
-2. [[#上下文窗口管理]]
-3. [[#上下文构建技术]]
-4. [[#上下文结构化最佳实践]]
-5. [[#RAG中的上下文工程]]
-6. [[#多轮对话管理]]
-7. [[#上下文质量评估]]
-8. [[#前沿技术]]
-9. [[#实操指南]]
-10. [[#工具推荐]]
-11. [[#参考资料]]
+### 用搬家的比喻理解
+
+```
+Prompt Engineering（提示工程）：
+像是在搬家时告诉搬家工人："小心点搬"
+
+Context Engineering（上下文工程）：
+像是给搬家工人准备好：
+- 哪件东西放哪个房间（信息结构）
+- 哪些是易碎品（重要标记）
+- 物品的价值（优先级）
+```
+
+### 正式定义
+
+**Context Engineering** 是系统性地设计、构建和优化大型语言模型在推理时接收的完整信息环境的学科。
+
+```
+关键点：
+1. "系统性地" - 不是随意塞内容，是有方法论的
+2. "完整信息环境" - 包括所有输入，不只是提示词
+3. "学科" - 这是一套需要学习的技能
+```
+
+### 上下文里有什么？
+
+当你和AI对话时，进入AI"眼睛"里的内容包括：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     完整上下文                                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1️⃣ System Prompt（系统提示）                                 │
+│     你给AI的永久指令，比如"你是一个Python专家"                   │
+│                                                              │
+│  2️⃣ 对话历史（Chat History）                                  │
+│     你和AI之前的对话内容                                       │
+│                                                              │
+│  3️⃣ 用户输入（User Input）                                    │
+│     你当前问的问题                                            │
+│                                                              │
+│  4️⃣ 外部知识（RAG检索结果）                                   │
+│     从文档/数据库查到的相关信息                                │
+│                                                              │
+│  5️⃣ 工具输出（Tool Results）                                  │
+│     搜索引擎、计算器等工具返回的结果                            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 核心概念与定义
+## 二、Context Engineering vs Prompt Engineering
 
-### 什么是Context Engineering
-
-**Context Engineering** 是系统性地设计、构建和优化大型语言模型在推理时接收的完整信息环境的学科。根据Anthropic 2025年9月的文档，上下文工程涵盖“在LLM推理期间策展和维护最佳token集合的策略，包括进入上下文窗口的所有信息（提示词除外）”。
-
-这一术语由Andrej Karpathy在2025年中期推广，他将上下文工程描述为“在上下文窗口中填充恰到好处的信息以完成下一步的微妙艺术和科学”。
-
-### Context Engineering vs Prompt Engineering
+### 核心区别
 
 | 维度 | Prompt Engineering | Context Engineering |
 |------|-------------------|---------------------|
-| **焦点** | 优化单个查询的指令 | 设计整个信息环境 |
-| **范围** | 孤立的交互优化 | 跨会话的持久系统 |
-| **控制方式** | 每次交互手动提供 | 自动化持续维护 |
-| **时间成本** | 每次查询15-25%时间解释上下文 | 一次性设置，长期受益 |
-| **一致性** | 因开发者而异 | 标准化统一 |
+| **焦点** | 优化单个提示词 | 设计整个信息环境 |
+| **范围** | 一次对话 | 跨会话持久系统 |
+| **控制方式** | 每次手动调整 | 自动化维护 |
+| **时间成本** | 每次都要想 | 一次性设计，长期受益 |
+| **类比** | 选词措辞 | 决定桌上放什么资料 |
 
-**核心比喻**：Prompt Engineering是选择问题的措辞，Context Engineering是决定在问题提出之前把哪些教科书、笔记和参考资料放在桌上。
+### 一个形象的比喻
 
-### 五大支柱
+```
+Prompt Engineering：选词
+"这个问题怎么问比较好？"
+↓
+"请分析数据" vs "帮我分析一下这份销售报表"
+↓
 
-上下文工程的五个核心支柱：
+Context Engineering：准备资料
+"回答这个问题需要哪些背景知识？"
+↓
+在提问前，先准备好：
+- 销售报表数据
+- 往期对比数据
+- 分析模板
+```
 
-1. **检索（Retrieval）** - 从外部知识库获取相关信息
-2. **记忆管理（Memory Management）** - 管理对话历史和持久化信息
-3. **状态管理（State Management）** - 跟踪当前会话和任务状态
-4. **上下文压缩（Context Compression）** - 在有限token预算内最大化信息价值
-5. **信息路由（Information Routing）** - 决定哪些数据管道在何时激活
+### 为什么Context Engineering更重要？
 
-### 五类上下文
+研究数据告诉我们：
 
-对于AI编码助手，上下文可分为五类：
+```
+在生产级AI系统中：
 
-| 类型 | 描述 | 示例 |
-|------|------|------|
-| **架构上下文** | 系统结构和设计模式 | 组件通信模式、数据流 |
-| **代码库上下文** | 现有代码和工具函数 | 工具类、辅助函数 |
-| **业务领域上下文** | 业务规则和术语 | 合规要求、工作流 |
-| **开发工作流上下文** | 流程和标准 | Git提交规范、代码审查 |
-| **历史和执行上下文** | 演化和运行时数据 | 废弃模式、性能指标 |
+├── 提示词本身（Prompt）
+│   └── 只占 10-20% 的内容
+│
+└── 上下文内容（Context）
+    ├── 检索文档：50-70%
+    ├── 对话历史：10-20%
+    └── 其他：5-10%
+
+结论：优化上下文往往比优化提示词效果更明显！
+```
 
 ---
 
-## 上下文窗口管理
+## 三、Context Engineering的五大支柱
+
+### 支柱1：检索（Retrieval）
+
+从外部知识库找到相关信息：
+
+```python
+class SimpleRetriever:
+    """
+    简单的检索器示例
+    从文档库中找到相关内容
+    """
+
+    def __init__(self, documents: list):
+        """
+        Args:
+            documents: 文档列表，每个文档是 {'content': str, 'source': str}
+        """
+        self.documents = documents
+
+    def retrieve(self, query: str, top_k: int = 3) -> list:
+        """
+        检索相关文档
+
+        Args:
+            query: 用户问题
+            top_k: 返回几个结果
+
+        Returns:
+            相关文档列表
+        """
+        # 简单实现：用关键词匹配
+        query_words = set(query.lower().split())
+
+        scored = []
+        for doc in self.documents:
+            content_words = set(doc['content'].lower().split())
+            # 计算重叠的词
+            overlap = query_words & content_words
+            score = len(overlap) / len(query_words) if query_words else 0
+
+            scored.append({
+                'doc': doc,
+                'score': score
+            })
+
+        # 按分数排序，返回top_k
+        scored.sort(key=lambda x: x['score'], reverse=True)
+        return [s['doc'] for s in scored[:top_k] if s['score'] > 0]
+
+
+# 使用示例
+docs = [
+    {'content': 'Python是一门高级编程语言', 'source': 'python.txt'},
+    {'content': 'JavaScript用于Web开发', 'source': 'js.txt'},
+    {'content': '机器学习是AI的分支', 'source': 'ml.txt'}
+]
+
+retriever = SimpleRetriever(docs)
+results = retriever.retrieve('Python编程语言')
+print(results)  # [{'content': 'Python是一门高级编程语言', 'source': 'python.txt'}]
+```
+
+### 支柱2：记忆管理（Memory Management）
+
+管理对话历史和持久化信息：
+
+```python
+class SimpleMemoryManager:
+    """
+    简单的记忆管理器
+    管理对话历史和关键信息
+    """
+
+    def __init__(self, max_history: int = 10):
+        """
+        Args:
+            max_history: 最多保存多少轮对话
+        """
+        self.max_history = max_history
+        self.messages = []        # 对话历史
+        self.facts = {}           # 记住的关键事实
+
+    def add_message(self, role: str, content: str):
+        """添加消息"""
+        self.messages.append({
+            'role': role,
+            'content': content
+        })
+
+        # 检查是否有关键事实需要记住
+        self._extract_facts(content)
+
+        # 清理过长的历史
+        if len(self.messages) > self.max_history:
+            self.messages = self.messages[-self.max_history:]
+
+    def _extract_facts(self, content: str):
+        """提取关键事实（简化版）"""
+        # 检测"我叫"、"我叫小明"等模式
+        if '我叫' in content or '我的名字是' in content:
+            # 简单提取（实际应该用正则）
+            self.facts['user_name'] = content
+        if '用Python' in content or '用python' in content.lower():
+            self.facts['preferred_language'] = 'Python'
+
+    def get_context(self) -> str:
+        """获取完整上下文"""
+        parts = []
+
+        # 添加记忆的事实
+        if self.facts:
+            parts.append("[记住的信息]")
+            for key, value in self.facts.items():
+                parts.append(f"- {key}: {value}")
+            parts.append("")
+
+        # 添加对话历史
+        for msg in self.messages:
+            parts.append(f"{msg['role']}: {msg['content']}")
+
+        return '\n'.join(parts)
+
+
+# 使用示例
+memory = SimpleMemoryManager(max_history=5)
+
+memory.add_message('user', '我叫小明')
+memory.add_message('assistant', '你好小明！')
+memory.add_message('user', '帮我写一个登录功能，用Python')
+memory.add_message('assistant', '好的，这是Python登录功能...')
+
+context = memory.get_context()
+print(context)
+```
+
+### 支柱3：状态管理（State Management）
+
+跟踪当前任务状态：
+
+```python
+class TaskStateManager:
+    """
+    任务状态管理器
+    跟踪当前任务的进度和上下文
+    """
+
+    def __init__(self):
+        self.current_task = None
+        self.task_steps = []      # 任务步骤
+        self.completed_steps = [] # 已完成步骤
+        self.pending_data = {}     # 待处理的数据
+
+    def start_task(self, task_name: str, description: str):
+        """开始新任务"""
+        self.current_task = {
+            'name': task_name,
+            'description': description,
+            'status': 'in_progress'
+        }
+        self.task_steps = []
+        self.completed_steps = []
+
+    def add_step(self, step: str):
+        """添加任务步骤"""
+        self.task_steps.append(step)
+
+    def complete_step(self, step: str):
+        """标记步骤完成"""
+        if step in self.task_steps and step not in self.completed_steps:
+            self.completed_steps.append(step)
+
+    def get_status(self) -> dict:
+        """获取当前状态"""
+        progress = len(self.completed_steps) / len(self.task_steps) if self.task_steps else 0
+
+        return {
+            'task': self.current_task,
+            'progress': f"{progress:.0%}",
+            'completed': self.completed_steps,
+            'pending': [s for s in self.task_steps if s not in self.completed_steps],
+            'data': self.pending_data
+        }
+
+
+# 使用示例
+state = TaskStateManager()
+state.start_task('用户登录功能', '实现完整的用户认证系统')
+state.add_step('设计数据库表')
+state.add_step('实现注册API')
+state.add_step('实现登录API')
+state.add_step('添加JWT支持')
+state.complete_step('设计数据库表')
+state.pending_data['user_table'] = 'CREATE TABLE users...'
+
+print(state.get_status())
+```
+
+### 支柱4：上下文压缩（Context Compression）
+
+在有限token内塞入更多信息：
+
+```python
+class SimpleContextCompressor:
+    """
+    简单的上下文压缩器
+    把长文本压缩成短摘要
+    """
+
+    def __init__(self, llm_client):
+        self.llm = llm_client
+
+    def compress(self, text: str, target_length: int = 500) -> str:
+        """
+        压缩文本
+
+        Args:
+            text: 要压缩的文本
+            target_length: 目标长度（字符数）
+
+        Returns:
+            压缩后的文本
+        """
+        # 简化实现：直接截断 + 摘要提示
+        # 实际应该用LLM生成摘要
+
+        if len(text) <= target_length:
+            return text
+
+        # 简单截断到目标长度
+        compressed = text[:target_length] + "..."
+
+        return compressed
+
+    def smart_compress(self, text: str, max_tokens: int = 500) -> str:
+        """
+        智能压缩（需要LLM）
+        """
+        prompt = f"""请将以下文本压缩到大约{max_tokens}字，保留核心信息：
+
+{text}
+
+压缩要求：
+1. 删除次要细节
+2. 保留关键数据和结论
+3. 保持原文的逻辑结构
+
+压缩后："""
+
+        return self.llm.generate(prompt)
+
+
+# 使用示例
+class ConversationCompressor:
+    """
+    对话历史压缩器
+    定期把旧对话压缩成摘要
+    """
+
+    def __init__(self, llm_client, compress_after: int = 10):
+        self.llm = llm_client
+        self.compress_after = compress_after  # 多少轮后压缩
+        self.history = []
+        self.summary = None
+
+    def add(self, role: str, content: str):
+        """添加消息"""
+        self.history.append({'role': role, 'content': content})
+
+        # 检查是否需要压缩
+        if len(self.history) >= self.compress_after:
+            self._compress_old()
+
+    def _compress_old(self):
+        """压缩旧对话"""
+        if len(self.history) < self.compress_after:
+            return
+
+        # 取前半部分压缩
+        old_messages = self.history[:len(self.history)//2]
+
+        prompt = f"""总结以下对话的核心内容，保留关键信息：
+
+{self._format_messages(old_messages)}
+
+总结要求：
+1. 保留主要话题和决定
+2. 保留用户的核心需求
+3. 删除闲聊和细节
+4. 控制在100字以内
+
+总结："""
+
+        self.summary = self.llm.generate(prompt)
+
+        # 保留后半部分
+        self.history = self.history[len(old_messages):]
+
+    def get_context(self) -> str:
+        """获取完整上下文"""
+        parts = []
+
+        if self.summary:
+            parts.append(f"[早期对话摘要] {self.summary}\n")
+
+        for msg in self.history:
+            parts.append(f"{msg['role']}: {msg['content']}")
+
+        return '\n'.join(parts)
+
+    def _format_messages(self, messages: list) -> str:
+        return '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
+```
+
+### 支柱5：信息路由（Information Routing）
+
+决定什么信息在什么时候用：
+
+```python
+class ContextRouter:
+    """
+    上下文路由器
+    根据任务类型决定使用哪些信息
+    """
+
+    def __init__(self):
+        # 不同类型的任务需要不同的上下文
+        self.routing_rules = {
+            'code_review': ['code_standards', 'recent_commits'],
+            'data_analysis': ['data_schema', 'business_rules'],
+            'customer_service': ['user_history', 'product_info'],
+            'general': []
+        }
+
+    def route(self, task_type: str, available_contexts: dict) -> list:
+        """
+        根据任务类型路由上下文
+
+        Args:
+            task_type: 任务类型
+            available_contexts: 可用的上下文 {'context_name': content}
+
+        Returns:
+            需要使用的上下文列表
+        """
+        # 获取该任务类型需要的上下文类型
+        needed_types = self.routing_rules.get(task_type, self.routing_rules['general'])
+
+        # 筛选可用的上下文
+        selected = []
+        for ctx_type in needed_types:
+            if ctx_type in available_contexts:
+                selected.append({
+                    'type': ctx_type,
+                    'content': available_contexts[ctx_type]
+                })
+
+        return selected
+
+
+# 使用示例
+router = ContextRouter()
+
+available = {
+    'code_standards': '编码规范：使用PEP8...',
+    'recent_commits': '最近提交：修复了登录bug...',
+    'data_schema': '数据库结构...',
+    'user_history': '用户历史...'
+}
+
+contexts = router.route('code_review', available)
+for ctx in contexts:
+    print(f"[{ctx['type']}]\n{ctx['content']}\n")
+```
+
+---
+
+## 四、五类上下文详解
+
+### 对AI编程助手，五类上下文特别重要
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 AI编程助手的五类上下文                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  📐 架构上下文                                               │
+│  ├─ 系统由哪些组件构成                                       │
+│  ├─ 组件之间怎么通信                                        │
+│  └─ 数据怎么流转                                            │
+│                                                              │
+│  💻 代码库上下文                                             │
+│  ├─ 有哪些工具函数可用                                      │
+│  ├─ 现有代码的风格                                          │
+│  └─ 依赖关系                                                │
+│                                                              │
+│  📋 业务领域上下文                                           │
+│  ├─ 这个领域的专业术语                                      │
+│  ├─ 业务规则和限制                                          │
+│  └─ 合规要求                                                │
+│                                                              │
+│  🔧 开发流程上下文                                           │
+│  ├─ Git提交规范                                             │
+│  ├─ 代码审查要求                                            │
+│  └─ 测试覆盖率要求                                          │
+│                                                              │
+│  📜 历史执行上下文                                           │
+│  ├─ 之前尝试过什么                                          │
+│  ├─ 遇到过什么问题                                          │
+│  └─ 性能数据                                                │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 五、上下文窗口管理
 
 ### 核心挑战
 
-上下文窗口管理面临三大根本性挑战：
-
-**1. Token限制与成本**
-- Claude 3 Sonnet: 200K tokens
-- GPT-4 Turbo: 128K tokens  
-- Gemini 1.5 Pro: 2M tokens（2024年6月）
-- Claude Opus 4.6: 1M tokens（通用可用）
-
-**2. 信号稀释**
-当上下文扩展时，不相关信息会淹没关键信息，导致模型推理能力下降。研究表明，**上下文漂移（Context Drift）** 是2025年企业AI失败率65%的主要原因，而非单纯的上下文耗尽。
-
-**3. "中间丢失"效应**
-微软研究院2025年的研究发现，超过100K tokens后，有效上下文利用率降至约60%。模型难以整合或忽略长上下文中显著部分的信息。
-
-### 主要压缩方法
-
-#### 1. 锚定迭代摘要（Anchored Iterative Summarization）
-
-Factory在36,000个真实工程会话中的评估表明，这种方法通过扩展现有摘要（仅压缩新驱逐的消息并合并到持久状态）优于全量重建，在准确性、完整性和连续性上表现更佳。
-
-#### 2. ACON（Agent Context Optimization）
-
-一种失败驱动的方法，通过分析压缩上下文导致任务失败的案例来迭代优化压缩指南。ACON在保持95%+任务准确率的同时，将内存使用减少26-54%，且可与闭源模型配合使用。
-
-#### 3. 提供商原生API
-
-Anthropic的压缩API（`compact-2026-01-12`）在Claude、AWS Bedrock、Google Vertex AI和Microsoft Foundry上提供自动生产级压缩。
-
-#### 4. xRAG
-
-使用模态融合将检索文档压缩为单一token，通过将文档嵌入整合到语言模型的表示空间中，在减少3.53倍计算量的同时提高10%性能。
-
-#### 5. CoLoR
-
-通过偏好训练专门优化长上下文语言模型的压缩，实现6%检索提升，文档压缩比达1.91倍。
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  上下文窗口的三大挑战                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1️⃣ Token限制                                               │
+│     模型一次能看的token数有限                                  │
+│     - GPT-4 Turbo: 128K tokens                              │
+│     - Claude 3: 200K tokens                                 │
+│     - Gemini 1.5: 1M tokens                                 │
+│                                                              │
+│  2️⃣ 信号稀释                                                │
+│     信息太多，重要的被淹没                                     │
+│     研究发现：超过100K tokens后，有效利用率只有60%            │
+│                                                              │
+│  3️⃣ 中间丢失                                                │
+│     "Lost in the Middle" - 模型记不住中间的内容               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### 滑动窗口策略
 
-滑动窗口是管理对话历史的经典方法：
+```python
+class SlidingWindowManager:
+    """
+    滑动窗口管理器
+    用一个"移动的窗口"管理对话历史
+    """
+
+    def __init__(self, window_size: int = 10, overlap: int = 2):
+        """
+        Args:
+            window_size: 窗口大小（多少条消息）
+            overlap: 重叠数量（窗口之间重叠几条）
+        """
+        self.window_size = window_size
+        self.overlap = overlap
+        self.messages = []
+
+    def add(self, role: str, content: str):
+        """添加消息"""
+        self.messages.append({'role': role, 'content': content})
+
+    def get_window(self, query: str = None) -> list:
+        """
+        获取当前窗口内的消息
+
+        Args:
+            query: 可选，当前的问题（用于决定窗口位置）
+
+        Returns:
+            窗口内的消息列表
+        """
+        if len(self.messages) <= self.window_size:
+            return self.messages
+
+        # 返回最近的窗口
+        start = max(0, len(self.messages) - self.window_size)
+        return self.messages[start:]
+
+    def get_context(self) -> str:
+        """获取窗口内的上下文"""
+        window = self.get_window()
+        return self._format_messages(window)
+
+    def _format_messages(self, messages: list) -> str:
+        return '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
+```
+
+### 渐进式披露
 
 ```
-[窗口大小: N条消息]
-| 消息1 | 消息2 | ... | 消息N | → [保留] | → [丢弃]
+┌─────────────────────────────────────────────────────────────┐
+│                   渐进式披露策略                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  第1层：发现层（始终可见）                                     │
+│  ├─ 约80 tokens                                             │
+│  ├─ 名称、简单描述                                           │
+│  └─ 用于快速判断是否相关                                      │
+│                                                              │
+│  第2层：激活层（相关时加载）                                   │
+│  ├─ 275-2000 tokens                                         │
+│  ├─ 完整指令、使用说明                                        │
+│  └─ 触发时才加载                                             │
+│                                                              │
+│  第3层：执行层（任务期间）                                     │
+│  ├─ 2000-8000 tokens                                        │
+│  ├─ 脚本、详细材料                                           │
+│  └─ 任务真正开始时加载                                       │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-**变体**：
-- **Token-based Window**: 按token数量而非消息数量计算
-- **Semantic Window**: 按语义主题而非线性时间分段
-- **Adaptive Window**: 根据任务类型动态调整窗口大小
-
-### 渐进式披露（Progressive Disclosure）
-
-Anthropic在2025年12月发布的Agent Skills使用三级信息加载策略：
-
-| 层级 | 加载时机 | Token消耗 | 示例 |
-|------|----------|-----------|------|
-| **发现层** | 始终可见 | ~80 tokens | 名称、描述 |
-| **激活层** | 相关时加载 | 275-2,000 tokens | 完整指令 |
-| **执行层** | 任务期间 | 2,000-8,000 tokens | 脚本、材料 |
 
 ---
 
-## 上下文构建技术
+## 六、上下文结构化最佳实践
 
-### Few-Shot示例选择
-
-Few-Shot Learning通过在提示中提供少量示例来引导模型理解任务。示例选择的质量直接影响模型性能。
-
-#### 核心策略
-
-**1. BM25检索**
-- 基于概率的词匹配算法
-- 强Out-of-domain泛化能力
-- 低延迟，索引大小<0.4GB
-- 可通过查询增强和重加权提升
-
-**2. Embedding语义搜索**
-- 使用稠密向量表示语义相似性
-- 超越关键词匹配的限制
-- 识别概念相关而非术语相同的内容
-
-**3. 最大边际相关性（MMR）**
-MMR通过组合相似性和多样性来选择示例：
+### 为什么结构重要？
 
 ```
-选择与输入嵌入余弦相似度最高的示例，
-然后迭代添加示例时惩罚与已选示例的接近度。
+无结构的上下文（AI头疼）：
+小明今天去商店买了苹果香蕉和橘子然后回家然后洗了苹果然后吃然后看书然后睡觉
+
+有结构的上下文（AI清爽）：
+# 小明的一天
+
+## 早上
+- 去了商店
+- 买了苹果、香蕉、橘子
+
+## 中午
+- 回家
+- 洗苹果
+- 吃苹果
+
+## 晚上
+- 看书
+- 睡觉
 ```
 
-MMR优于仅基于语义相似度选择示例的方法，确保选中的示例代表多样化概念。
+### 推荐格式：XML vs Markdown
 
-#### 示例池构建
-
-高质量示例池的构建原则：
-
-1. **多样性覆盖**：覆盖任务的各个维度和边界情况
-2. **代表性**：反映真实分布而非极端案例
-3. **清晰标注**：每个示例附带任务类型标签
-4. **定期更新**：根据模型反馈迭代优化
-
-### 上下文压缩技术
-
-#### Contextual Compression Pipeline
-
-LangChain的`DocumentCompressor`抽象实现：
-
-```
-检索文档 → 压缩处理 → 精炼上下文
-```
-
-**关键压缩器**：
-
-| 压缩器 | 原理 | 优势 |
-|--------|------|------|
-| **LLMChainExtractor** | 使用LLM从文档中提取相关陈述 | 高精度 |
-| **EmbeddingsFilter** | 按嵌入相似度过滤文档 | 自动化 |
-| **DocumentCompressorPipeline** | 链式组合多个压缩步骤 | 灵活性 |
-
-#### 摘要技术
-
-**渐进式摘要（Progressive Summarization）**
-
-```
-第1层: 保留完整原文
-第2层: 提取关键句子
-第3层: 生成摘要
-第4层: 提取要点/标签
-```
-
-**对话摘要 vs 记忆形成**
-
-研究显示，**记忆形成优于摘要**：选择性地存储关键事实而非压缩所有内容。Mem0等系统相比基础聊天历史管理，可削减80-90% token成本，同时将响应质量提高26%。
-
----
-
-## 上下文结构化最佳实践
-
-### 为什么结构重要
-
-研究显示，提示结构对输出质量的影响与更换模型相当。当使用标准化格式时，你正在与LLM训练时接触的JSON（API）、XML（文档）、YAML（配置）等结构化数据格式对齐。
-
-### 推荐格式
-
-#### XML标签格式
-
-Claude在XML结构化提示上达到87分（对比Markdown的71分）。
+**研究数据**：
+- Claude在XML格式上得分：87分
+- Claude在Markdown格式上得分：71分
 
 ```xml
-<role>你是一个Python后端开发专家</role>
+<!-- XML格式示例 -->
+<role>Python后端开发专家</role>
 <task>优化数据库查询性能</task>
 <constraints>
-  <limit>响应时间<100ms</limit>
-  <limit>使用现有的ORM框架</limit>
+    <limit>响应时间 < 100ms</limit>
+    <limit>使用现有ORM框架</limit>
 </constraints>
 <input>
-  当前查询: {{query}}
-  数据库schema: {{schema}}
+    <query>当前查询: {{query}}</query>
+    <schema>数据库schema: {{schema}}</schema>
 </input>
-<output_format>返回优化后的SQL和解释</output_format>
 ```
 
-#### Markdown Fence格式
+```markdown
+<!-- Markdown格式示例 -->
+## 角色
+Python后端开发专家
 
-适用于混乱的有效载荷如堆栈跟踪、CSV和配置：
+## 任务
+优化数据库查询性能
 
-````markdown
-```json
-{
-  "error": "Connection timeout",
-  "stack_trace": [...],
-  "context": {...}
-}
-```
-````
+## 限制
+- 响应时间 < 100ms
+- 使用现有ORM框架
 
-#### JSON格式
-
-通用标准，适合需要机器可读输出的场景：
-
-```json
-{
-  "task": "code_review",
-  "language": "python",
-  "focus_areas": ["security", "performance"],
-  "constraints": {
-    "max_complexity": 10,
-    "require_tests": true
-  }
-}
+## 输入
+- 当前查询：{{query}}
+- 数据库schema：{{schema}}
 ```
 
-### 最佳实践清单
+### 结构化提示词模板
 
-- [ ] 使用祈使句而非描述（94%应用率 vs 73%）
-- [ ] 明确分离指令、约束、数据和输出格式
-- [ ] 跨提示使用一致的描述性标签名
-- [ ] 提供3-5个多样且相关的示例
-- [ ] 添加解释*为什么*的上下文动机
-- [ ] 将稳定内容（系统指令、工具定义）放在提示开头
+```python
+class StructuredPromptBuilder:
+    """
+    结构化提示词构建器
+    """
 
----
+    @staticmethod
+    def build_task_prompt(
+        role: str,
+        task: str,
+        context: str,
+        constraints: list,
+        output_format: str
+    ) -> str:
+        """
+        构建结构化提示词
 
-## RAG中的上下文工程
+        Args:
+            role: 角色定义
+            task: 具体任务
+            context: 背景上下文
+            constraints: 约束条件
+            output_format: 输出格式要求
+        """
+        prompt = f"""<role>{role}</role>
+<task>{task}</task>
 
-### 上下文工程 vs RAG
+<context>
+{context}
+</context>
 
-RAG是一种检索技术，而上下文工程是决定什么信息进入上下文窗口、如何进入、以什么顺序的架构层。
+<constraints>
+{chr(10).join([f"<constraint>{c}</constraint>" for c in constraints])}
+</constraints>
 
-**关系图**：
+<output_format>{output_format}</output_format>"""
 
-```
-┌─────────────────────────────────────┐
-│        Context Engineering          │
-│  ┌─────────────────────────────┐   │
-│  │     RAG (检索增强生成)        │   │
-│  │  ┌─────────────────────────┐ │   │
-│  │  │  Query Understanding    │ │   │
-│  │  │  Context Routing       │ │   │
-│  │  │  Hybrid Retrieval      │ │   │
-│  │  └─────────────────────────┘ │   │
-│  └─────────────────────────────┘   │
-│  + System Prompts                   │
-│  + Memory Management                │
-│  + Tool Orchestration              │
-└─────────────────────────────────────┘
-```
+        return prompt
 
-### 查询理解（Query Understanding）
+    @staticmethod
+    def build_code_review_prompt(
+        code: str,
+        language: str,
+        focus_areas: list
+    ) -> str:
+        """代码审查提示词"""
+        return f"""你是{language}代码审查专家。
 
-高质量RAG的第一步是理解用户查询的真实意图：
+请审查以下代码，关注以下方面：
+{chr(10).join([f"- {area}" for area in focus_areas])}
 
-| 技术 | 描述 | 适用场景 |
-|------|------|----------|
-| **Query Classification** | 分类查询类型（事实性/解释性/探索性） | 路由到不同处理流程 |
-| **Intent Detection** | 检测多意图查询 | 分解复合查询 |
-| **Query Expansion** | 扩展查询以提高召回 | 同义词、相关概念 |
-| **Query Decomposition** | 分解为子查询 | 复杂多步骤问题 |
-
-### 上下文路由（Context Routing）
-
-根据查询类型决定信息源：
-
-```
-用户查询 → 路由判断 → 专用处理管道
-                ↓
-    ┌───────────┼───────────┐
-    ↓           ↓           ↓
-  知识库     对话历史    工具/API
-  检索       管理        调用
+代码：
+```{language}
+{code}
 ```
 
-### 混合检索（Hybrid Retrieval）
+审查结果（JSON格式）：
+{{
+    "issues": [...],
+    "suggestions": [...],
+    "rating": "1-10"
+}}
+"""
 
-结合多种检索策略的优势：
 
-| 检索类型 | 优势 | 适用场景 |
-|----------|------|----------|
-| **关键词搜索** | 精确匹配、语法灵活性 | 专有名词、技术术语 |
-| **语义向量搜索** | 概念理解、语义相似性 | 同义词、意图理解 |
-| **结构分析** | 依赖关系、模块关联 | 代码库检索 |
-| **时间过滤** | 最新信息优先 | 快速变化领域 |
+# 使用示例
+prompt = StructuredPromptBuilder.build_task_prompt(
+    role="资深Python后端工程师",
+    task="实现用户认证API",
+    context="项目使用FastAPI框架，需要支持JWT认证",
+    constraints=[
+        "使用现有的User模型",
+        "返回标准HTTP状态码",
+        "包含适当的错误处理"
+    ],
+    output_format="提供完整可运行的代码"
+)
 
-### Beyond Naive RAG
-
-2025年的RAG已超越简单的“嵌入并搜索”方法：
-
-- **推理增强搜索**：结合LLM推理能力优化检索
-- **晚交互模型**：Late Interaction（如ColBERT）支持token级别交互
-- **多重表示**：同一内容的多种索引方式
-- **图数据库**：关系密集型数据的图索引
-
----
-
-## 多轮对话管理
-
-### 核心挑战
-
-| 挑战 | 影响 | 解决方案 |
-|------|------|----------|
-| Token限制 | 50轮对话可消耗10,000+ tokens | 分层压缩 |
-| 关键信息丢失 | 简单截断导致上下文断裂 | 智能摘要 |
-| 状态复杂性 | 多会话、多用户状态 | 隔离与跟踪 |
-| 成本上升 | 对话越长推理成本越高 | 按需加载 |
-
-### 常见策略
-
-**1. 最后N条消息**
-最简单的策略，但会丢失早期关键上下文。
-
-**2. Token截断**
-更好的成本控制，但仍存在上下文丢失问题。
-
-**3. 摘要+近期上下文**
-压缩旧段落同时保留近期交换，是目前最平衡的方案。
-
-### 高级压缩技术
-
-#### CDIC（Context-Driven Incremental Compression）
-
-将对话视为交错的上下文线程，通过"检索→修订→回写"循环维护每个线程的可修订压缩状态，在长对话中稳定行为。
-
-#### MT-OSC（One-off Sequential Condensation）
-
-使用Few-shot冷凝代理和轻量级决策器在后台自动压缩聊天历史，在10轮对话中减少72% token数，同时保持跨多个LLM的准确性。
-
-### 内存架构
-
-```
-┌────────────────────────────────────────┐
-│           Production Architecture       │
-├────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-│  │ Working  │  │ Episodic │  │ Long-  │ │
-│  │ Memory   │  │ Memory   │  │ Term   │ │
-│  │(~5轮)   │  │ (摘要)   │  │ (持久) │ │
-│  └────┬─────┘  └────┬─────┘  └───┬────┘ │
-│       └──────────────┼────────────┘       │
-│                     ↓                     │
-│            ┌───────────────┐              │
-│            │ Context Router │              │
-│            └───────┬───────┘              │
-│                    ↓                      │
-│            ┌───────────────┐              │
-│            │  LLM Request  │              │
-│            └───────────────┘              │
-└────────────────────────────────────────┘
+print(prompt)
 ```
 
 ---
 
-## 上下文质量评估
+## 七、Context Caching（上下文缓存）
 
-### Faithfulness问题
+### 缓存能省多少钱？
 
-即使RAG系统提供了外部上下文，LLM仍经常引入不支持的信息或矛盾，这被称为**忠实度幻觉（Faithfulness Hallucination）**。
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     主流平台缓存折扣                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Gemini 2.5+/3:    90% 折扣                                 │
+│  Gemini 2.0:       75% 折扣                                 │
+│  Claude:            90% 折扣 (0.1x 基础价格)                │
+│  GPT-5.4:           90% 折扣                                 │
+│  GPT-4:             50% 折扣                                 │
+│                                                              │
+│  例子：原来$1的请求，缓存后只需$0.1！                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 评估框架
+### 隐式缓存 vs 显式缓存
 
-#### FaithLens（2025）
+```
+隐式缓存（自动）：
+├── 默认启用，不用配置
+├── 自动检测重复内容
+├── 没有保证节省
+└── 最低限制：1024 tokens
 
-8B参数的专门模型，提供二元预测和解释，在12个多样化任务上超越GPT-4.1和o3。使用合成训练数据结合标签正确性和解释质量的过滤策略。
+显式缓存（手动）：
+├── 手动创建缓存
+├── 设置TTL（过期时间）
+├── 保证折扣
+└── 成本可预测
+```
 
-#### FaithEval
+### 缓存使用示例
 
-包含4.9K高质量问题的全面基准，涵盖三种任务类型：
-- **不可回答上下文**：模型应拒绝回答的情况
-- **不一致上下文**：上下文内部矛盾
-- **反事实上下文**：与事实相反的上下文
+```python
+# 隐式缓存示例
+messages = [
+    {"role": "system", "content": "你是一个法律顾问..."},  # 重复内容
+    {"role": "user", "content": "第一个问题"}
+]
+response1 = client.chat.completions.create(
+    model="claude-3",
+    messages=messages
+)
+# 第二次请求相同系统提示，会自动命中缓存
 
-关键发现：即使是最先进的模型也在上下文忠实度上挣扎，更大的模型不一定表现更好。
+# 显式缓存示例（伪代码）
+cache = client.caches.create(
+    instructions="你是一个法律顾问，熟悉中国合同法...",
+    ttl_seconds=3600  # 1小时过期
+)
 
-#### FaithJudge
-
-LLM-as-Judge框架，通过多样化的人工标注幻觉示例改进自动评估，与人类判断的一致性高于现有方法。
-
-### 评估指标
-
-| 指标 | 定义 | 测量方法 |
-|------|------|----------|
-| **Faithfulness** | 输出与上下文的一致程度 | 自动评估、人类评分 |
-| **Relevance** | 上下文与查询的相关性 | 相似度计算 |
-| **Coverage** | 上下文覆盖答案的程度 | 覆盖分析 |
-| **Utilization** | 模型利用上下文的程度 | 注意力分析 |
-
-### 上下文利用率分析
-
-**信号稀释检测**：监控模型是否对所有上下文token分配相似注意力，还是集中在少数关键部分。
-
-**Lost-in-the-Middle检测**：在长上下文的中间位置插入关键信息，测试模型是否能检索到。
+# 使用缓存
+messages = [
+    {"role": "system", "content": cache.id, "cache_control": {"type": "ephemeral"}},
+    {"role": "user", "content": "问题1"}
+]
+response = client.chat.completions.create(
+    model="claude-3",
+    messages=messages
+)
+```
 
 ---
 
-## 前沿技术
+## 八、上下文质量评估
 
-### Long Context Model演进
+### 评估什么？
 
-#### 时间线
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  上下文质量四维度                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  🎯 Faithfulness（忠实度）                                   │
+│     输出和上下文一致吗？有没有编造？                            │
+│                                                              │
+│  🔗 Relevance（相关性）                                      │
+│     上下文和查询相关吗？                                       │
+│                                                              │
+│  📊 Coverage（覆盖度）                                      │
+│     上下文覆盖了答案需要的全部信息吗？                          │
+│                                                              │
+│  💡 Utilization（利用率）                                    │
+│     模型有没有好好用上下文？                                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-| 时间 | 模型 | 上下文窗口 | 关键突破 |
-|------|------|------------|----------|
-| 2024 | GPT-4 Turbo | 128K | 主流突破 |
-| 2024 | Claude 3 | 200K | 强推理能力 |
-| 2024 | Gemini 1.5 | 1M | 当时最长 |
-| 2024.06 | Gemini 1.5 Pro | 2M | 持续领先 |
-| 2026 | Claude Opus 4.6 | 1M | 通用可用，无溢价 |
+### 简单评估器
 
-#### 重要警告
+```python
+class SimpleContextEvaluator:
+    """
+    简单的上下文评估器
+    """
 
-尽管上下文窗口不断扩大，但微软研究院2025年的研究表明，**超过100K tokens后有效利用率降至约60%**。这意味着：
+    def __init__(self, llm_client):
+        self.llm = llm_client
 
-- 更大的上下文窗口 ≠ 更好的结果
-- 可能增加成本而无相应质量提升
-- "Lost in the middle"问题仍然存在
+    def evaluate(self, context: str, query: str, answer: str) -> dict:
+        """
+        评估上下文质量
 
-### Context Caching（上下文缓存）
+        Returns:
+            {'faithfulness': float, 'relevance': float, 'coverage': float}
+        """
+        # 评估忠实度
+        faithfulness = self._check_faithfulness(context, answer)
 
-#### 成本优化效果
+        # 评估相关性
+        relevance = self._check_relevance(context, query)
 
-| 提供商 | 版本 | 缓存读取折扣 |
-|--------|------|-------------|
-| **Gemini 2.5+/3** | 当前 | 90% |
-| **Gemini 2.0** | 当前 | 75% |
-| **Anthropic Claude** | 当前 | 90%（0.1x基础价格） |
-| **OpenAI GPT-5.4** | 当前 | 90% |
-| **OpenAI GPT-4** | 当前 | 50% |
+        # 评估覆盖度
+        coverage = self._check_coverage(context, query, answer)
 
-#### 隐式缓存 vs 显式缓存
+        return {
+            'faithfulness': faithfulness,
+            'relevance': relevance,
+            'coverage': coverage,
+            'overall': (faithfulness + relevance + coverage) / 3
+        }
 
-**隐式缓存（自动）**：
-- 默认启用，无需配置
-- 自动检测重复内容前缀
-- 无保证节省
-- 最低token限制：1,024（Flash）/ 4,096（Pro）
+    def _check_faithfulness(self, context: str, answer: str) -> float:
+        """检查忠实度"""
+        prompt = f"""评估回答是否忠实于上下文。
 
-**显式缓存（手动）**：
-- 手动创建缓存
-- 设置自定义TTL
-- 保证折扣
-- 成本可预测
+上下文：
+{context[:1000]}
 
-#### 缓存设计原则
+回答：
+{answer}
 
-1. **位置优化**：将稳定内容（系统指令、工具定义、参考文档）放在提示开头
-2. **阈值优化**：确保达到缓存最低token限制
-3. **批量优化**：在短时间窗口内发送相似前缀的请求以最大化隐式缓存命中
-4. **成本计算**：缓存写入（1.25x）+ 缓存读取（0.1x）= 0.675x，已可盈利
+回答是否在上下文中能找到支持？
+- 如果是：输出1
+- 如果不是：输出0
+- 如果部分是：输出0.5
 
-### Context Compression前沿
+只输出数字："""
 
-#### LLMLingua
+        result = self.llm.generate(prompt).strip()
+        try:
+            return float(result)
+        except:
+            return 0.5
 
-专门训练用于压缩技术文档的模型，在保留信息的同时实现40-50%更好的信息保留率，相比简单截断策略。
+    def _check_relevance(self, context: str, query: str) -> float:
+        """检查相关性"""
+        # 简单实现：关键词重叠
+        query_words = set(query.lower().split())
+        context_words = set(context.lower().split())
+        overlap = len(query_words & context_words)
+        return overlap / len(query_words) if query_words else 0
 
-#### 模态融合压缩
-
-xRAG等方法将文档嵌入整合到语言模型表示空间，实现极端压缩率。
+    def _check_coverage(self, context: str, query: str, answer: str) -> float:
+        """检查覆盖度"""
+        # 简化：检查回答长度是否合理
+        if len(answer) < 50:
+            return 0.3  # 太短，可能没回答完整
+        elif len(answer) > 2000:
+            return 0.7  # 太长，可能有废话
+        else:
+            return 0.8  # 适中
+```
 
 ---
 
-## 实操指南
+## 九、实战：构建完整的Context Engineering系统
 
-### 实施阶段
+```python
+class ContextEngineeringSystem:
+    """
+    完整的Context Engineering系统
+    整合所有组件
+    """
 
-#### 1. 准备阶段
+    def __init__(
+        self,
+        llm_client,
+        vector_store=None,
+        memory_manager=None
+    ):
+        self.llm = llm_client
+        self.vector_store = vector_store
+        self.memory = memory_manager or SimpleMemoryManager()
+        self.state = TaskStateManager()
+        self.router = ContextRouter()
+        self.compressor = None  # 可选
 
-**识别高价值上下文来源**：
-- 分析代码审查中发现的标准（错误处理、日志、测试）
-- 审查现有的风格指南和架构文档
-- 访谈团队成员获取隐性知识
+        # 配置
+        self.config = {
+            'max_context_tokens': 8000,
+            'enable_retrieval': True,
+            'enable_memory': True,
+            'enable_state': True
+        }
 
-**建立优先级 backlog**：
+    def query(
+        self,
+        user_input: str,
+        task_type: str = 'general',
+        retrieve_top_k: int = 3
+    ) -> str:
+        """
+        处理用户查询
+
+        Args:
+            user_input: 用户输入
+            task_type: 任务类型
+            retrieve_top_k: 检索返回数量
+
+        Returns:
+            AI的回答
+        """
+        # 1. 添加到记忆
+        self.memory.add_message('user', user_input)
+
+        # 2. 检索相关文档（如果有）
+        retrieved_docs = []
+        if self.config['enable_retrieval'] and self.vector_store:
+            retrieved_docs = self.vector_store.search(
+                query=user_input,
+                top_k=retrieve_top_k
+            )
+
+        # 3. 路由上下文
+        context_sources = {
+            'memory': self.memory.get_context(),
+        }
+        if retrieved_docs:
+            context_sources['retrieved'] = '\n\n'.join([
+                doc['content'] for doc in retrieved_docs
+            ])
+
+        routed = self.router.route(task_type, context_sources)
+
+        # 4. 构建完整上下文
+        full_context = self._build_full_context(routed, user_input)
+
+        # 5. 生成回答
+        answer = self.llm.generate(full_context)
+
+        # 6. 添加到记忆
+        self.memory.add_message('assistant', answer)
+
+        return answer
+
+    def _build_full_context(self, routed: list, user_input: str) -> str:
+        """构建完整上下文"""
+        parts = []
+
+        # 添加路由来的上下文
+        for ctx in routed:
+            parts.append(f"[{ctx['type']}]\n{ctx['content']}\n")
+
+        # 添加用户输入
+        parts.append(f"[当前问题]\n{user_input}\n")
+
+        return '\n'.join(parts)
+
+
+# 使用示例
+def demo_ce_system():
+    """演示完整的Context Engineering系统"""
+
+    # 初始化
+    # ce = ContextEngineeringSystem(
+    #     llm_client=llm,
+    #     vector_store=vector_store
+    # )
+
+    # 第一轮对话
+    # answer1 = ce.query(
+    #     "我叫小明，要做一个电商网站",
+    #     task_type='general'
+    # )
+    # print(f"AI: {answer1}")
+
+    # 第二轮对话
+    # answer2 = ce.query(
+    #     "帮我设计数据库",
+    #     task_type='data_modeling'
+    # )
+    # print(f"AI: {answer2}")
+    # AI应该记得小明要做电商网站
+
+    print("Context Engineering系统演示完成！")
 ```
-优先级 = 预期影响 × 获取难度
-```
-
-**建立上下文文件结构**：
-
-```
-/
-├── ORGANIZATION.md      # 组织级上下文（所有项目）
-├── PROJECT.md          # 项目级上下文
-└── modules/
-    ├── api/
-    │   └── CONTEXT.md  # 模块级上下文
-    └── database/
-        └── CONTEXT.md
-```
-
-#### 2. 实施阶段
-
-**三个基础上下文文件**：
-
-1. **Coding Standards** - 语言特定风格指南、命名约定、文件组织
-2. **Architecture Overview** - 系统组件、通信模式、数据流
-3. **Development Workflow** - 分支策略、代码审查要求、测试标准
-
-**工具配置**：
-- Claude Code: `CLAUDE.md`
-- GitHub Copilot: `.copilot-instructions.md`
-- Cursor: `.cursor/rules`
-
-#### 3. 测量与优化
-
-**关键指标**：
-
-| 指标 | 目标 | 测量方法 |
-|------|------|----------|
-| 手动上下文解释减少率 | >80% | 交互分析 |
-| 代码审查周期减少 | 40-60% | PR数据 |
-| Token使用效率 | 最大化利用率 | 日志分析 |
-| 上下文检索延迟 | <100ms | APM监控 |
-
-**自动化验证**：
-- CI/CD中验证代码示例仍可编译
-- 静态分析验证引用函数存在
-- 监控上下文文件修改日期，标记陈旧内容
-
-### 常见陷阱
-
-| 陷阱 | 症状 | 解决方案 |
-|------|------|----------|
-| **上下文漂移** | 文档与实现不一致 | 季度审查、自动验证 |
-| **过度上下文** | 无关信息淹没关键内容 | 精炼、过滤 |
-| **上下文不足** | 模型产生通用输出 | 补充关键上下文 |
-| **陈旧上下文** | 引用不存在的API | 自动验证、TTL |
 
 ---
 
-## 工具推荐
-
-### 框架对比
-
-| 框架 | 主要优势 | 适用场景 | 学习曲线 |
-|------|----------|----------|----------|
-| **LangChain/LangGraph** | 编排、复杂工作流 | 多步骤Agent、条件逻辑 | 较陡 |
-| **LlamaIndex** | RAG、文档检索 | 知识图谱、结构化数据 | 较缓 |
-| **两者结合** | 最佳平衡 | 混合架构 | 中等 |
-
-### LangChain vs LlamaIndex
-
-**LangChain**：
-- 通用编排框架
-- LCEL（LangChain Expression Language）
-- LangGraph用于有状态工作流
-- LangSmith用于可观测性
-
-**LlamaIndex**：
-- 数据中心检索框架
-- 高级分块和索引
-- LlamaCloud用于托管服务
-- Arize Phoenix/Langfuse用于可观测性
-
-### 混合架构推荐
+## 十、常见问题与解决
 
 ```
-LlamaIndex（数据平面）
-├── 文档摄取
-├── 分块策略
-└── 向量索引
-
-LangGraph（控制平面）
-├── 对话状态
-├── 多步骤Agent逻辑
-└── 工具编排
+┌─────────────────────────────────────────────────────────────┐
+│                  Context Engineering 常见问题                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ❓ 问题1：AI忘记重要信息                                      │
+│     ├─ 原因：历史太长被截断                                    │
+│     └─ 解决：使用记忆管理器，把重要事实单独存储                 │
+│                                                              │
+│  ❓ 问题2：AI输出和上下文矛盾                                  │
+│     ├─ 原因：上下文不够清晰或模型幻觉                           │
+│     └─ 解决：结构化上下文，添加忠实度检查                       │
+│                                                              │
+│  ❓ 问题3：上下文太长超出限制                                   │
+│     ├─ 原因：塞了太多无关信息                                   │
+│     └─ 解决：使用路由器，只选相关内容                           │
+│                                                              │
+│  ❓ 问题4：不同任务需要不同上下文                               │
+│     ├─ 原因：通用上下文不够精准                                 │
+│     └─ 解决：任务分类 + 动态路由                               │
+│                                                              │
+│  ❓ 问题5：成本太高                                            │
+│     ├─ 原因：每次都传大量上下文                                 │
+│     └─ 解决：使用缓存、压缩、渐进式披露                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-### 上下文质量工具
-
-| 工具 | 用途 | 特点 |
-|------|------|------|
-| **Mem0** | 记忆管理 | 80-90% token成本削减 |
-| **LLMLingua** | 上下文压缩 | 专门训练压缩模型 |
-| **FaithLens** | 忠实度检测 | 幻觉检测与解释 |
-| **Packs/Packmind** | 企业上下文管理 | Model Context Protocol |
-
-### 缓存和成本优化
-
-| 工具/服务 | 用途 | 折扣 |
-|-----------|------|------|
-| **Anthropic Compact API** | 自动压缩 | 生产级 |
-| **Gemini Context Caching** | 显式/隐式缓存 | 75-90% |
-| **Redis** | 会话持久化 | 开源 |
 
 ---
 
-## 参考资料
+## 十一、工具推荐
 
-### 核心文献
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     主流框架对比                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  🛠️ LangChain / LangGraph                                   │
+│     ├─ 优点：通用编排框架，适合复杂工作流                      │
+│     ├─ 适用：多步骤Agent、条件逻辑                            │
+│     └─ 学习曲线：较陡                                         │
+│                                                              │
+│  🛠️ LlamaIndex                                              │
+│     ├─ 优点：数据检索为中心，高级分块                          │
+│     ├─ 适用：RAG、知识图谱                                    │
+│     └─ 学习曲线：较缓                                         │
+│                                                              │
+│  🛠️ 两者结合                                                 │
+│     ├─ LlamaIndex处理数据                                    │
+│     └─ LangGraph处理控制流                                    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-1. **State of Context Engineering in 2026** - Kushal Banda, Towards AI, 2026
+---
+
+## 十二、总结
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Context Engineering 速查表                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  🎯 核心概念                                                         │
+│  ├─ Context Engineering = 系统性地设计AI的完整信息环境               │
+│  ├─ 比Prompt Engineering更重要（上下文占80-90%的内容）              │
+│  └─ 是2025-2026年AI开发的核心技术                                   │
+│                                                                      │
+│  🏛️ 五大支柱                                                         │
+│  ├─ 检索：从知识库找到相关信息                                      │
+│  ├─ 记忆管理：管理对话历史和持久信息                                 │
+│  ├─ 状态管理：跟踪任务进度                                          │
+│  ├─ 上下文压缩：在有限空间内塞入更多信息                            │
+│  └─ 信息路由：决定什么信息在什么时候用                               │
+│                                                                      │
+│  📊 五类上下文                                                       │
+│  ├─ 架构上下文、业务领域上下文、开发流程上下文                       │
+│  └─ 代码库上下文、历史执行上下文                                    │
+│                                                                      │
+│  🔧 关键技术                                                         │
+│  ├─ 滑动窗口、渐进式披露、上下文缓存                                │
+│  ├─ 混合检索、重排序、压缩                                          │
+│  └─ 结构化提示词、评估框架                                          │
+│                                                                      │
+│  💡 最佳实践                                                         │
+│  ├─ 用XML或Markdown结构化内容                                      │
+│  ├─ 重要信息放开头或结尾                                            │
+│  ├─ 使用缓存节省成本                                                │
+│  └─ 定期评估上下文质量                                              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 相关主题
+
+- [[上下文窗口深度解析]] - 深入理解窗口限制
+- [[滑动窗口技术]] - 滑动窗口的具体实现
+- [[上下文压缩技术]] - 压缩方法详解
+- [[RAG上下文优化指南]] - RAG中的上下文优化
+- [[对话历史管理]] - 对话历史的管理策略
+- [[FewShot示例选择]] - 如何选择好的示例
+- [[上下文质量评估]] - 评估上下文质量
+
+---
+
+## 参考文献
+
+1. **State of Context Engineering in 2026** - Towards AI, 2026
 2. **What is Context Engineering?** - Packmind, 2026
 3. **Context Engineering: The Complete Guide** - TECHSY, 2026
-4. **FaithLens: Detecting and Explaining Faithfulness Hallucination** - arXiv:2512.20182, 2025
-5. **FaithEval: Can Your Language Model Stay Faithful to Context** - ICLR 2025
-
-### 技术文档
-
-6. **LangChain Context Engineering** - LangChain Docs, 2025
-7. **Context Caching | Gemini API** - Google AI, 2026
-8. **RAG Context Engineering** - McGillivray LAB, 2025
-9. **Multi-Turn Chatbot Conversation State Management** - Chaos and Order, 2026
-
-### 框架文档
-
-10. **LangChain vs LlamaIndex in 2025** - Blog Comparison
-11. **LlamaIndex Documentation** - Official Docs
-12. **Anthropic Claude API Documentation** - Official Docs
+4. **Anthropic Claude API Documentation** - Anthropic, 2026
+5. **LangChain Context Engineering** - LangChain Docs, 2025
+6. **Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks** - NeurIPS 2020
 
 ---
 
-## 延伸阅读
-
-- [[LLM大语言模型基础]]
-- [[RAG检索增强生成实践]]
-- [[Prompt Engineering提示工程]]
-- [[AI Agent架构设计]]
-- [[向量数据库技术]]
-
----
-
-*本文档由AI深度调研生成，整合了2025-2026年Context Engineering领域的最新研究成果和实践经验。*
+*本文档为零基础读者深入讲解Context Engineering，包含了大量代码示例和实战技巧。Context Engineering是构建高质量AI应用的核心技能，值得深入学习和实践。*

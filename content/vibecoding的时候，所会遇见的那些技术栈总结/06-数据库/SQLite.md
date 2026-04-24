@@ -1,176 +1,161 @@
-# SQLite：嵌入式数据库的工业标准
+---
+date: 2026-04-24
+tags:
+  - 数据库
+  - SQLite
+  - 嵌入式数据库
+  - Turso
+  - libSQL
+  - 本地优先
+---
+
+# SQLite 完全指南
 
 > [!NOTE]
-> 本文档最后更新于 **2026年4月**，涵盖 SQLite 最新特性、WAL 模式、Node.js 集成、Turso 分布式架构，以及 AI 应用中的 SQLite 实战指南。
+> 本文档最后更新于 **2026年4月**，涵盖 SQLite 最新特性、WAL 模式详解、Node.js 集成（Bun + better-sqlite3）、Python 集成（sqlite3 + SQLAlchemy + aiosqlite）、Turso 分布式 SQLite、Prisma/Drizzle 集成、Litestream 备份、AI 应用实战，以及性能调优技巧。
 
 ---
 
 ## 目录
 
-1. [[#SQLite 核心概念与架构]]
-2. [[#SQLite 最新特性（JSON/FTS5/R-Tree）]]
+1. [[#SQLite 概述与核心定位]]
+2. [[#SQLite 技术架构详解]]
 3. [[#WAL 模式与并发机制]]
-4. [[#SQLite vs PostgreSQL vs MySQL 对比]]
-5. [[#Node.js 中的 SQLite（better-sqlite3/sqlite3）]]
-6. [[#Litestream 自动备份]]
-7. [[#Drizzle ORM 中的 SQLite]]
-8. [[#Turso：分布式 SQLite]]
-9. [[#使用场景选择指南]]
-10. [[#AI 应用中的 SQLite]]
+4. [[#JSON/FTS5/R-Tree 高级特性]]
+5. [[#SQLite vs PostgreSQL vs MySQL 对比]]
+6. [[#Node.js 集成：better-sqlite3 与 sql.js]]
+7. [[#Bun 原生支持]]
+8. [[#Python 集成：sqlite3、SQLAlchemy、aiosqlite]]
+9. [[#Prisma + SQLite]]
+10. [[#Drizzle + SQLite]]
+11. [[#Turso：分布式 SQLite]]
+12. [[#Litestream 自动备份]]
+13. [[#性能调优与最佳实践]]
+14. [[#SQLite 限制与迁移时机]]
+15. [[#AI 应用场景实战]]
+16. [[#选型建议]]
 
 ---
 
-## SQLite 核心概念与架构
+## SQLite 概述与核心定位
 
 ### 什么是 SQLite
 
-SQLite 是一个嵌入式关系型数据库引擎，由 D. Richard Hipp 于 2000 年为美国海军驱逐舰 USS Oscar Austin 项目开发。截至 2026 年，SQLite 已成为世界上部署最广泛的数据库软件——全球超过 1 万亿个应用实例在运行 SQLite，从手机浏览器到飞机导航系统，无处不在。
+SQLite 是一个轻量级的、零配置的、嵌入式关系型数据库引擎。它不是传统意义上的「数据库服务器」——没有独立的进程、没有网络监听、没有复杂的配置——而是直接嵌入到应用程序中的单个 C 库。这意味着 SQLite 数据库就是一个普通的文件，可以被任何有权限的进程读写。
 
-SQLite 的核心设计哲学是**简单、可靠、自包含**。它不是一个传统意义上的数据库服务器，而是一个可直接嵌入应用程序的库。数据库以单个文件形式存储，无需独立的数据库进程管理，这种设计使得 SQLite 在以下场景具有不可替代的优势：
+SQLite 由 D. Richard Hipp 于 2000 年为美国海军的军舰导航系统设计，最初的目标是在嵌入式系统中替代笨重的数据库服务器。二十多年后的今天，SQLite 已经成为世界上部署最广泛的数据库软件——从你口袋里的手机、你电脑上的浏览器、你手表上的健康应用，到飞机上的黑匣子、卫星上的数据采集系统，无处不在。
 
-- **移动应用**：iOS 和 Android 原生支持，微信、支付宝等超级 App 的核心数据均存储于 SQLite
-- **桌面应用**：浏览器（Chrome、Firefox）、邮件客户端、设计软件均使用 SQLite
-- **嵌入式系统**：物联网设备、汽车电子、航空航天控制系统
-- **本地开发与测试**：开发者无需安装配置数据库服务即可快速开始
-- **小型网站与微服务**：低流量场景下替代 PostgreSQL/MySQL
+有一个广为流传的说法是：「世界上有两种数据库——用 SQLite 的，和不知道自己在用 SQLite 的。」这句话虽然夸张，但确实反映了 SQLite 的普及程度。Android 和 iOS 原生支持 SQLite、Chrome 和 Firefox 用 SQLite 存储历史记录和 cookies、WhatsApp 用 SQLite 存储聊天记录、Instagram 用 SQLite 存储图片元数据——可以说，SQLite 就是数字世界的毛细血管，虽然不起眼，但无处不在。
 
-### SQLite 的技术架构
+### SQLite 在 2026 年的价值
 
-SQLite 的架构分为四个主要层次：
+很多人对 SQLite 的印象还停留在「小玩具」「只能用于原型开发」的阶段。但事实上，SQLite 在 2026 年已经有了质的飞跃。
 
-```
-┌─────────────────────────────────────────┐
-│           接口层（Interface）           │
-│  SQLite API / SQLite CLI / 驱动程序     │
-├─────────────────────────────────────────┤
-│          SQL 编译器（SQL Compiler）      │
-│  解析器 → 查询规划器 → 代码生成器       │
-├─────────────────────────────────────────┤
-│           虚拟机（VM）                  │
-│  执行 B-Tree 操作、页缓存、事务管理     │
-├─────────────────────────────────────────┤
-│          后端引擎（Backend）            │
-│  B-Tree、页缓存、OS 接口、锁机制        │
-└─────────────────────────────────────────┘
-```
+首先，**WAL 模式**让 SQLite 的并发能力大幅提升。传统观念认为 SQLite 只能单写多读，但在 WAL 模式下，写操作和读操作可以并行执行，读取不会阻塞写入，写入也不会阻塞读取（只有写写互斥）。这使得 SQLite 可以应对相当高并发的场景。
 
-### 存储结构
+其次，**Turso 和 libSQL** 让 SQLite 突破了单机限制。Turso 是基于 libSQL（SQLite 的开源分支）的分布式数据库服务，支持全球边缘部署、多区域复制、真正的水平扩展。这让 SQLite 从「单机数据库」进化为「分布式数据库」。
 
-SQLite 数据库由多个 4KB（或可配置的 1KB-64KB）页组成，每个页的类型包括：
+第三，**AI 应用的本地优先（Local-First）趋势**让 SQLite 找到了新的定位。在 AI 时代，本地知识库、本地向量数据库、离线优先的 AI 应用都需要一个轻量级、可嵌入的数据存储——SQLite 完美符合这个需求。
 
-| 页类型 | 说明 | 用途 |
-|--------|------|------|
-| `table-btree-leaf` | 表 B-Tree 叶子页 | 存储表数据 |
-| `table-btree-internal` | 表 B-Tree 内部页 | 索引结构 |
-| `index-btree-leaf` | 索引 B-Tree 叶子页 | 索引数据 |
-| `index-btree-internal` | 索引 B-Tree 内部页 | 索引结构 |
-| `overflow` | 溢出页 | 存储超过页大小的 BLOB/TEXT |
-| `freelist` | 空闲页管理 | 页回收管理 |
+### SQLite 的核心哲学
 
-> [!IMPORTANT]
-> SQLite 默认使用页大小为 4096 字节，在创建数据库后可使用 `PRAGMA page_size = 8192` 修改（仅在建库前可修改）。
+SQLite 的设计哲学可以用三个词概括：**简单、可靠、自包含**。
+
+**简单**体现在零配置——不需要安装、不需要启动服务、不需要初始化脚本。创建一个数据库只需要一行代码：`sqlite3 myapp.db`，然后就可以开始执行 SQL 了。
+
+**可靠**体现在 ACID 事务的完整支持。SQLite 的事务是真正的 ACID 事务，即使在系统崩溃、断电、程序异常退出时也不会损坏数据。SQLite 团队为事务的可靠性编写了数百万行的测试代码和形式化验证。
+
+**自包含**体现在零外部依赖。SQLite 的代码库大约 15 万行，编译成一个 C 库，没有外部依赖。这使得 SQLite 特别适合嵌入式系统、容器环境、以及需要单文件分发的应用。
 
 ### 市场份额与行业地位
 
-SQLite 是世界上部署最广泛的软件组件之一：
-
 | 应用类型 | 代表产品 | 使用场景 |
-|---------|---------|----------|
+|---------|---------|---------|
 | **移动设备** | iOS、Android | 应用数据存储 |
-| **浏览器** | Chrome、Firefox、Safari | 本地缓存 |
+| **浏览器** | Chrome、Firefox、Safari | 本地缓存、Cookies |
 | **桌面软件** | Skype、Adobe、Photos | 数据持久化 |
-| **航空系统** | 波音、空客 | 飞行数据记录 |
-| **汽车电子** | 车载系统 | 配置存储 |
-| **嵌入式设备** | 树莓派、Arduino | IoT 数据 |
+| **航空系统** | 波音 787、空客 A350 | 飞行数据记录 |
+| **汽车电子** | 特斯拉车载系统 | 配置与日志存储 |
+| **物联网** | 树莓派、各种传感器 | 时序数据采集 |
+| **AI 应用** | 本地知识库、向量搜索 | RAG 系统数据存储 |
 
-**关键数据点**：
-- 世界上每部智能手机都运行 SQLite（iOS/Android）
-- 浏览器中 SQLite 存储 cookies、历史记录、缓存
-- SQLite 代码库约 15 万行，零外部依赖
-- SQLite 数据库文件可在任何操作系统间自由移动
-- 全球超过 1 万亿个 SQLite 实例在运行
-
-**SQLite 适用场景**：
-
-| 场景 | 推荐程度 | 说明 |
-|------|----------|------|
-| 移动应用 | ⭐⭐⭐⭐⭐ | iOS/Android 原生支持 |
-| 桌面软件 | ⭐⭐⭐⭐⭐ | 单文件，零配置 |
-| 本地开发 | ⭐⭐⭐⭐⭐ | 秒级启动 |
-| 嵌入式 | ⭐⭐⭐⭐⭐ | 零依赖 |
-| AI 本地知识库 | ⭐⭐⭐⭐ | 单文件管理 |
-| 高并发网站 | ⭐☆☆☆☆ | 不推荐 |
+**关键数据**：全球超过 1 万亿个 SQLite 实例在运行；每一部 iPhone 和 Android 手机都有几十个 SQLite 数据库；浏览器中 SQLite 的使用量是 IndexedDB 的 10 倍以上。
 
 ---
 
-## 核心概念与数据类型
+## SQLite 技术架构详解
+
+### 存储结构
+
+SQLite 数据库由固定大小的「页」（Page）组成，默认页大小是 4096 字节。数据库文件的开头是 100 字节的头部，包含页大小、文件格式版本、编码格式等元信息。
+
+```
+┌─────────────────────────────────────────────────────┐
+│              SQLite 数据库文件                         │
+├─────────────────────────────────────────────────────┤
+│ Header (100 bytes)                                  │
+│ ┌─────────────────────────────────────────────┐  │
+│ │ Magic: "SQLite format 3"                    │  │
+│ │ Page size: 4096                             │  │
+│ │ File format: read/write versions            │  │
+│ │ Reserved space: 0 bytes                      │  │
+│ └─────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│ Page 1 (Root - Schema Table)                       │
+│ ┌─────────────────────────────────────────────┐  │
+│ │ B-Tree 节点                                  │  │
+│ │ - Internal nodes (索引)                      │  │
+│ │ - Leaf nodes (表数据)                        │  │
+│ └─────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│ Page 2...N                                        │
+│ ┌─────────────────────────────────────────────┐  │
+│ │ 表数据 / 索引 / 溢出页                        │  │
+│ └─────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│ WAL 文件 (可选)                                     │
+│ ┌─────────────────────────────────────────────┐  │
+│ │ Write-Ahead Log                             │  │
+│ └─────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+### B-Tree 存储引擎
+
+SQLite 内部使用 B-Tree（更准确地说是 B+Tree 的变种）来存储数据。表数据存储在「表 B-Tree」中，叶子节点直接存储行数据；索引存储在「索引 B-Tree」中，叶子节点存储索引值和主键。
+
+B-Tree 的设计使得 SQLite 的操作具有优秀的复杂度：查找 O(log N)、范围扫描 O(log N + M)、插入/删除 O(log N)。对于中小规模的数据集，B-Tree 的性能表现非常出色。
 
 ### 数据类型
 
-SQLite 使用动态类型系统，每个值都可以存储任何类型：
+SQLite 使用动态类型系统——每个值可以存储任何类型，列的类型声明更多是一种「亲和性」而非硬性限制。SQLite 支持以下基本类型：NULL（空值）、INTEGER（64位有符号整数）、REAL（IEEE 754 浮点数）、TEXT（UTF-8 文本）、BLOB（二进制大对象）。
 
 ```sql
 -- SQLite 数据类型
--- NULL、INTEGER、REAL、TEXT、BLOB
-
--- 创建表
 CREATE TABLE products (
-    id INTEGER PRIMARY KEY,          -- INTEGER
-    name TEXT NOT NULL,             -- TEXT
-    price REAL DEFAULT 0.0,        -- REAL
-    description TEXT,               -- TEXT
-    image BLOB,                     -- BLOB
+    id INTEGER PRIMARY KEY,           -- INTEGER
+    name TEXT NOT NULL,              -- TEXT
+    price REAL DEFAULT 0.0,         -- REAL
+    description TEXT,                -- TEXT
+    image BLOB,                     -- BLOB（二进制数据）
+    metadata JSON,                   -- TEXT（JSON 作为文本存储）
     created_at TEXT DEFAULT (datetime('now'))
 );
-
--- 类型亲和性规则
--- SQLite 会尝试将数据存储为以下亲和类型之一：
--- TEXT: 包含文本
--- NUMERIC: 数值数据
--- INTEGER: 整数值
--- REAL: 浮点值
--- BLOB: 二进制数据
 ```
 
-### 核心概念
+虽然 SQLite 是动态类型，但每个值都会根据一定规则被赋予「存储类型」：
 
-#### 1. 数据库文件结构
+- 如果值是纯整数且在 -9223372036854775808 到 9223372036854775807 之间，存储为 INTEGER
+- 如果值是浮点数，存储为 REAL
+- 如果值是字符串或 NULL，存储为 TEXT 或 NULL
+- 其他情况存储为 BLOB
 
-```
-┌─────────────────────────────────────────┐
-│           SQLite 数据库文件               │
-├─────────────────────────────────────────┤
-│ Header (100 bytes)                      │
-│ ┌─────────────────────────────────────┐ │
-│ │ Magic header: "SQLite format 3"     │ │
-│ │ Page size                           │ │
-│ │ File format versions                │ │
-│ │ Reserved space                      │ │
-│ └─────────────────────────────────────┘ │
-├─────────────────────────────────────────┤
-│ Page 1 (Root page of schema table)     │
-│ ┌─────────────────────────────────────┐ │
-│ │ B-Tree structure                    │ │
-│ │ - Internal nodes                    │ │
-│ │ - Leaf nodes                       │ │
-│ └─────────────────────────────────────┘ │
-├─────────────────────────────────────────┤
-│ Page 2...N                             │
-│ ┌─────────────────────────────────────┐ │
-│ │ Table B-Tree / Index B-Tree        │ │
-│ └─────────────────────────────────────┘ │
-├─────────────────────────────────────────┤
-│ WAL File (optional)                     │
-│ ┌─────────────────────────────────────┐ │
-│ │ Write-Ahead Log                    │ │
-│ └─────────────────────────────────────┘ │
-└─────────────────────────────────────────┘
-```
+### 事务机制
 
-#### 2. 事务机制
+SQLite 的事务是完整的 ACID 事务，这是 SQLite 区别于许多 NoSQL 数据库的核心优势。
 
 ```sql
--- ACID 事务
+-- 标准事务
 BEGIN TRANSACTION;
 INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');
 INSERT INTO orders (user_id, total) VALUES (1, 99.99);
@@ -179,134 +164,120 @@ COMMIT;
 -- 回滚事务
 BEGIN TRANSACTION;
 DELETE FROM users WHERE id = 1;
-ROLLBACK;
+ROLLBACK;  -- 撤销所有更改
 
--- 保存点
+-- 保存点（嵌套事务）
 BEGIN TRANSACTION;
 INSERT INTO users (name) VALUES ('Bob');
 SAVEPOINT sp1;
 INSERT INTO orders (user_id, total) VALUES (2, 50.00);
-ROLLBACK TO SAVEPOINT sp1;
-COMMIT;
+ROLLBACK TO SAVEPOINT sp1;  -- 只回滚到 sp1
+COMMIT;  -- Bob 会保存，订单不会保存
 ```
 
-#### 3. 锁定机制
+---
+
+## WAL 模式与并发机制
+
+### 三种日志模式对比
+
+SQLite 支持三种不同的日志模式，决定了数据库的并发能力和数据安全性。
+
+| 维度 | DELETE | WAL | MEMORY |
+|------|--------|-----|--------|
+| **日志类型** | 回滚日志 | 预写日志 | 无日志 |
+| **并发读** | 支持 | 支持（读写可并行） | 支持 |
+| **并发写** | 不支持 | 支持 | 不支持 |
+| **数据可靠性** | 取决于 fsync | 可配置 | 最低 |
+| **文件大小** | 稳定 | 可能膨胀 | 不适用 |
+| **适用场景** | 简单场景 | 高并发应用 | 测试/临时 |
+
+### WAL 模式详解
+
+WAL（Write-Ahead Logging，预写日志）模式是 SQLite 在 2010 年（3.7.0版本）引入的重大特性，至今仍是 SQLite 最重要的改进之一。
+
+在 WAL 模式下，写操作首先记录到 WAL 文件，然后定期「检查点」（checkpoint）将 WAL 中的修改合并回主数据库文件。这带来了几个关键优势：
+
+**读写可以并行**。在 DELETE 模式下，写操作会获取排他锁，此时读操作无法进行。在 WAL 模式下，写操作只锁定 WAL 文件，读操作完全不受影响。
+
+**写入不需要等待读取**。这解决了「写入饥饿」问题——在 DELETE 模式下，如果不断有读操作，写操作可能长时间等待。
+
+**更好的并发性能**。WAL 模式下的写入通常只需要 fsync WAL 文件，而不需要 fsync 整个数据库文件，性能更好。
 
 ```sql
--- WAL 模式下的锁定
+-- 启用 WAL 模式（最关键的配置）
 PRAGMA journal_mode=WAL;
 
--- 查看当前连接状态
-PRAGMA locking_mode;
+-- 推荐配置
+PRAGMA synchronous=NORMAL;   -- 推荐：平衡性能与安全
+-- NORMAL: 仅在关键事务点同步（推荐）
+-- FULL: 每个事务都同步（最安全但最慢）
+-- OFF: 不同步（最快，仅测试使用）
 
--- 独占锁定
-PRAGMA locking_mode=EXCLUSIVE;
+PRAGMA busy_timeout=5000;    -- 写锁等待超时 5 秒
+PRAGMA cache_size=-64000;    -- 64MB 页缓存（负数表示 KB）
 
--- 查看数据库锁
-PRAGMA database_list;
+-- 检查 WAL 状态
+PRAGMA journal_mode;         -- 返回: wal
+PRAGMA wal_checkpoint;       -- 检查点信息
 ```
 
-### 数据模型设计
+### WAL 的工作原理
 
-#### 1. 规范化设计
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   主数据库文件   │ ←→  │   WAL 文件      │ ←→  │   共享内存      │
+│   (*.db)        │     │   (*-wal)       │     │   (*-shm)       │
+│                 │     │                 │     │                 │
+│  持久化存储      │     │ 记录所有修改     │     │  读写进程同步    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+WAL 模式下，数据库目录会有三个文件：主数据库文件（`app.db`）、WAL 文件（`app.db-wal`）、共享内存文件（`app.db-shm`）。这三个文件必须保持一致——复制数据库时应该同时复制这三个文件。
+
+### 并发配置实战
 
 ```sql
--- 用户表
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-);
+-- 高并发应用配置
+PRAGMA journal_mode=WAL;
+PRAGMA synchronous=NORMAL;
+PRAGMA busy_timeout=30000;      -- 30 秒锁等待
+PRAGMA cache_size=-200000;     -- 200MB 缓存
+PRAGMA temp_store=MEMORY;       -- 临时表使用内存
+PRAGMA mmap_size=268435456;    -- 256MB 内存映射
 
--- 文章表
-CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT,
-    published INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- 标签表
-CREATE TABLE tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-);
-
--- 文章标签关联表
-CREATE TABLE post_tags (
-    post_id INTEGER NOT NULL,
-    tag_id INTEGER NOT NULL,
-    PRIMARY KEY (post_id, tag_id),
-    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
--- 索引
-CREATE INDEX idx_posts_user ON posts(user_id);
-CREATE INDEX idx_posts_published ON posts(published);
-CREATE INDEX idx_post_tags_post ON post_tags(post_id);
-CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
+-- 多连接配置
+PRAGMA read_uncommitted=1;      -- 允许脏读（提升性能）
 ```
 
-#### 2. 反规范化设计
-
-```sql
--- 缓存频繁查询的数据
-CREATE TABLE posts_denormalized (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT,
-    author_name TEXT,           -- 冗余字段
-    tag_list TEXT,              -- 冗余字段（逗号分隔）
-    comment_count INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- 物化路径（层级结构）
-CREATE TABLE categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    parent_id INTEGER,
-    path TEXT NOT NULL,         -- 如 "/electronics/phones"
-    level INTEGER DEFAULT 0,
-    FOREIGN KEY (parent_id) REFERENCES categories(id)
-);
-```
+> [!TIP]
+> WAL 模式下，多个读进程可以同时访问数据库。写操作会获取排他锁，但读操作永远不会阻塞写操作——这是 WAL 模式相比 DELETE 模式最大的优势。
 
 ---
 
----
-
-## SQLite 最新特性（JSON/FTS5/R-Tree）
+## JSON/FTS5/R-Tree 高级特性
 
 ### JSON 支持（SQLite 3.38+）
 
-SQLite 3.38 引入了强大的原生 JSON 支持，使得 SQLite 成为半结构化数据的理想存储方案。
-
-#### JSON 核心函数
+SQLite 3.38 引入了原生的 JSON 支持，提供了丰富的 JSON 处理函数。这让 SQLite 可以优雅地处理半结构化数据——既可以用 SQL 查询结构化字段，又可以用 JSON 函数查询灵活字段。
 
 ```sql
 -- 创建包含 JSON 的表
 CREATE TABLE events (
     id INTEGER PRIMARY KEY,
     name TEXT,
-    metadata JSON  -- JSON 类型，自动验证 JSON 格式
+    metadata JSON  -- JSON 类型（自动验证 JSON 格式）
 );
 
 -- 插入 JSON 数据
 INSERT INTO events (name, metadata) VALUES 
     ('user_signup', '{"source": "web", "plan": "free", "referrer": "google"}'),
-    ('purchase', '{"amount": 99.99, "currency": "USD", "items": 3}');
+    ('purchase', '{"amount": 99.99, "currency": "USD", "items": 3}'),
+    ('click', '{"button": "buy", "page": "/products"}');
 
 -- 提取 JSON 值
 SELECT 
+    id,
     name,
     json_extract(metadata, '$.source') as source,
     json_extract(metadata, '$.amount') as amount
@@ -316,38 +287,24 @@ FROM events;
 SELECT * FROM events 
 WHERE json_extract(metadata, '$.plan') = 'free';
 
--- 更新 JSON 字段（Path 语法）
+-- 更新 JSON 字段
 UPDATE events 
 SET metadata = json_set(metadata, '$.plan', 'premium')
 WHERE id = 1;
 
 -- JSON 数组操作
 INSERT INTO events (name, metadata) VALUES 
-    ('tagged', '{"tags": ["vip", "early_adopter"]}');
+    ('tagged', '{"tags": ["vip", "early_adopter"], "scores": [85, 90, 78]}');
 
+-- 遍历 JSON 数组
 SELECT json_each.value 
-FROM events, json_each(events.metadata, '$.tags');
-```
-
-#### JSON_TABLE：JSON 转表函数
-
-```sql
--- 将 JSON 数组展开为行
-SELECT jt.*
-FROM events,
-json_each(events.metadata, '$.items') as item,
-JSON_TABLE(item.value, '$' COLUMNS (
-    item_name TEXT PATH '$.name',
-    quantity INTEGER PATH '$.qty',
-    price REAL PATH '$.price'
-)) as jt;
+FROM events, json_each(events.metadata, '$.tags')
+WHERE events.name = 'tagged';
 ```
 
 ### FTS5：全文搜索
 
-FTS5（Full-Text Search version 5）是 SQLite 的全文搜索扩展，支持高效的中英文混合搜索。
-
-#### FTS5 表创建与使用
+FTS5（Full-Text Search version 5）是 SQLite 的全文搜索扩展，支持高效的中英文搜索。对于需要关键词搜索的应用，FTS5 是比 LIKE 模糊匹配优雅得多的解决方案。
 
 ```sql
 -- 创建 FTS5 虚拟表
@@ -360,40 +317,42 @@ CREATE VIRTUAL TABLE articles_fts USING fts5(
 -- 插入数据
 INSERT INTO articles_fts (title, content) VALUES
     ('AI 时代的数据库选择', 'SQLite 在 AI 应用中展现出独特的优势...'),
-    ('SQLite vs PostgreSQL', '两个数据库各有优劣，需要根据场景选择...');
+    ('SQLite vs PostgreSQL', '两个数据库各有优劣，需要根据场景选择...'),
+    ('本地优先应用开发', 'Local-First 是现代应用的新范式...');
 
 -- 基础全文搜索
-SELECT * FROM articles_fts WHERE articles_fts MATCH 'AI';
+SELECT * FROM articles_fts WHERE articles_fts MATCH 'SQLite';
 
 -- 多词搜索
 SELECT * FROM articles_fts WHERE articles_fts MATCH 'AI SQLite';
 
 -- 布尔搜索
 SELECT * FROM articles_fts WHERE articles_fts MATCH 'AI AND 数据库';
+SELECT * FROM articles_fts WHERE articles_fts MATCH 'SQLite OR PostgreSQL';
 
 -- 短语搜索
 SELECT * FROM articles_fts WHERE articles_fts MATCH '"AI 时代"';
 
--- 搜索结果排序（BM25）
+-- BM25 排序
 SELECT title, bm25(articles_fts) as rank 
 FROM articles_fts 
 WHERE articles_fts MATCH '数据库'
 ORDER BY rank;
 ```
 
-#### 中文分词配置
+### 中文分词配置
+
+SQLite 默认的分词器是「unicode61」，它按 Unicode 字符边界分词，对中文支持良好。如果需要更精细的中文分词，可以使用第三方分词器扩展。
 
 ```sql
 -- 使用 Unicode61 分词器（支持中文）
 CREATE VIRTUAL TABLE docs_zh USING fts5(
     title,
     content,
-    content='',
     tokenize='unicode61 remove_diacritics 1'
 );
 
--- 设置 contentless 行表以节省空间
--- 配合外部内容表使用
+-- 配合外部内容表（节省空间）
 CREATE TABLE docs_main (
     id INTEGER PRIMARY KEY,
     title TEXT,
@@ -403,16 +362,32 @@ CREATE TABLE docs_main (
 CREATE VIRTUAL TABLE docs_fts USING fts5(
     title,
     content,
-    content='docs_main',
+    content='docs_main',    -- 关联到主表
     content_rowid='id'
 );
+
+-- 自动同步触发器
+CREATE TRIGGER docs_ai AFTER INSERT ON docs_main BEGIN
+    INSERT INTO docs_fts(rowid, title, content) 
+    VALUES (new.id, new.title, new.content);
+END;
+
+CREATE TRIGGER docs_ad AFTER DELETE ON docs_main BEGIN
+    INSERT INTO docs_fts(docs_fts, rowid, title, content) 
+    VALUES('delete', old.id, old.title, old.content);
+END;
+
+CREATE TRIGGER docs_au AFTER UPDATE ON docs_main BEGIN
+    INSERT INTO docs_fts(docs_fts, rowid, title, content) 
+    VALUES('delete', old.id, old.title, old.content);
+    INSERT INTO docs_fts(rowid, title, content) 
+    VALUES (new.id, new.title, new.content);
+END;
 ```
 
 ### R-Tree：空间索引
 
-R-Tree 是一种专门用于索引空间数据的数据结构，SQLite 内置支持 R-Tree 扩展。
-
-#### 创建 R-Tree 表
+R-Tree 是一种专门用于索引空间数据的数据结构，SQLite 内置支持。
 
 ```sql
 -- 创建 R-Tree 索引
@@ -436,76 +411,6 @@ WHERE min_latitude <= 39.95 AND max_latitude >= 39.95
 
 ---
 
-## WAL 模式与并发机制
-
-### 三种日志模式对比
-
-SQLite 支持三种不同的日志模式，决定了数据库的并发能力和故障恢复机制：
-
-| 特性 | DELETE | WAL | MEMORY |
-|------|--------|-----|--------|
-| **默认行为** | 事务回滚日志 | 预写日志 | 内存模式 |
-| **并发读** | 支持 | 支持（读写可并行） | 支持 |
-| **并发写** | 不支持 | 支持 | 不支持 |
-| **故障恢复** | 需要重放日志 | 自动恢复 | 无需恢复 |
-| **数据库文件大小** | 稳定 | 可能膨胀 | 不适用 |
-| **fsync 调用** | 频繁 | 较少 | 无 |
-| **适用场景** | 简单场景 | 高并发应用 | 测试/临时数据 |
-
-### WAL 模式详解
-
-WAL（Write-Ahead Logging，预写日志）模式是 SQLite 3.11+ 的默认模式，相比传统 DELETE 模式具有显著优势：
-
-```sql
--- 启用 WAL 模式
-PRAGMA journal_mode=WAL;
-
--- 检查当前模式
-PRAGMA journal_mode;
--- 返回: wal
-
--- WAL 模式的推荐配置
-PRAGMA synchronous=NORMAL;  -- 推荐：平衡性能与安全
--- NORMAL: 仅在关键事务点同步（推荐）
--- FULL: 每个事务都同步（最安全，性能较低）
--- OFF: 不同步（最快，仅在特殊场景使用）
-
-PRAGMA busy_timeout=5000;   -- 写锁等待超时 5 秒
-
-PRAGMA cache_size=-64000;  -- 64MB 页缓存（负数表示 KB）
-```
-
-#### WAL 的工作原理
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   主数据库文件   │ ←→  │   WAL 文件      │ ←→  │   共享内存      │
-│   (*.db)        │     │   (*-wal)       │     │   (*-shm)       │
-│                 │     │                 │     │                 │
-│ 持久化存储       │     │记录所有修改      │     │读写进程间同步    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-### 并发配置实战
-
-```sql
--- 高并发应用配置
-PRAGMA journal_mode=WAL;
-PRAGMA synchronous=NORMAL;
-PRAGMA busy_timeout=30000;      -- 30 秒锁等待
-PRAGMA cache_size=-200000;     -- 200MB 缓存
-PRAGMA temp_store=MEMORY;       -- 临时表使用内存
-PRAGMA mmap_size=268435456;     -- 256MB 内存映射
-
--- 多连接配置
-PRAGMA read_uncommitted=1;       -- 允许脏读
-```
-
-> [!TIP]
-> WAL 模式下，多个读进程可以同时访问数据库，写操作不会阻塞读操作。只有一个写操作可以执行，且写操作会阻塞其他写操作。
-
----
-
 ## SQLite vs PostgreSQL vs MySQL 对比
 
 ### 核心定位对比
@@ -515,9 +420,8 @@ PRAGMA read_uncommitted=1;       -- 允许脏读
 | **架构类型** | 嵌入式（无服务器） | 客户端/服务器 | 客户端/服务器 |
 | **部署复杂度** | ★☆☆☆☆（极简） | ★★★☆☆（中等） | ★★★☆☆（中等） |
 | **并发能力** | ★★☆☆☆（受限于写锁） | ★★★★★（真正并发） | ★★★★☆（优秀） |
-| **数据类型** | 基础类型+JSON | 丰富类型+JSON+GIS+范围 | 基础类型+JSON |
+| **数据类型** | 基础+JSON | 丰富+JSON+GIS+范围 | 基础+JSON |
 | **扩展性** | ★★☆☆☆ | ★★★★★（丰富扩展） | ★★★☆☆ |
-| **完整性约束** | 基础约束 | 完整约束+触发器 | 基础约束 |
 | **适用规模** | < 100GB | 无上限 | < 1TB |
 
 ### 功能特性详细对比
@@ -526,61 +430,57 @@ PRAGMA read_uncommitted=1;       -- 允许脏读
 |------|--------|------------|-------|
 | **ACID 事务** | ✓ | ✓ | ✓ |
 | **外键约束** | ✓ | ✓ | ✓ |
-| **视图** | ✓ | ✓ | ✓ |
-| **存储过程** | ✗ | ✓ | ✓ |
 | **触发器** | ✓（有限） | ✓ | ✓ |
-| **窗口函数** | ✓ | ✓ | ✓（8.0+） |
-| **CTE（WITH）** | ✓ | ✓ | ✓（8.0+） |
-| **JSON 支持** | ✓（原生） | ✓（JSONB） | ✓ |
-| **全文搜索** | ✓（FTS5） | ✓（内置+扩展） | ✓ |
-| **空间数据** | ✓（R-Tree） | ✓（PostGIS） | ✓ |
+| **窗口函数** | ✓ | ✓ | ✓ |
+| **CTE（WITH）** | ✓ | ✓ | ✓ |
+| **JSON 支持** | ✓（原生） | ✓（JSONB 更强） | ✓ |
+| **全文搜索** | ✓（FTS5） | ✓ | ✓ |
+| **空间数据** | ✓（R-Tree） | ✓（PostGIS 极强） | ✓ |
 | **数组类型** | ✗ | ✓ | ✗ |
-| **范围类型** | ✗ | ✓ | ✗ |
-| **自定义函数** | ✓（C 扩展） | ✓ | ✓ |
-| **分区表** | ✗（受限制） | ✓ | ✓ |
 | **物化视图** | ✗ | ✓ | ✗ |
-
-### 性能对比
-
-| 操作类型 | SQLite | PostgreSQL | MySQL |
-|----------|--------|------------|-------|
-| **简单 SELECT** | ★★★★★ | ★★★☆☆ | ★★★★☆ |
-| **复杂 JOIN** | ★★☆☆☆ | ★★★★★ | ★★★★☆ |
-| **大量 INSERT** | ★★★★☆ | ★★★☆☆ | ★★★★☆ |
-| **并发读写** | ★★☆☆☆ | ★★★★★ | ★★★★☆ |
-| **TB 级数据** | ★☆☆☆☆ | ★★★★★ | ★★★☆☆ |
-| **内存占用** | ★★★★★（极低） | ★★★☆☆ | ★★★☆☆ |
+| **分区表** | ✗（受限制） | ✓ | ✓ |
+| **存储过程** | ✗ | ✓ | ✓ |
 
 > [!IMPORTANT]
-> SQLite 的「慢」是相对于高并发场景的。在单用户、低并发、随机读写场景下，SQLite 的性能表现优于网络数据库，因为省去了 TCP/IP 通信开销。
+> SQLite 的「单写」限制是相对于高并发写入场景的。在单写多读、或写并发不高的场景下，SQLite 的性能表现往往优于网络数据库，因为省去了 TCP/IP 通信的开销。
+
+### 选型决策树
+
+```
+开始
+  │
+  ├─ 是否需要远程多进程写入？
+  │     │
+  │     ├─ 是 → 数据量 < 100GB？
+  │     │          ├─ 是 → Turso（分布式 SQLite）✓
+  │     │          └─ 否 → PostgreSQL ✓
+  │     │
+  │     └─ 否 → SQLite ✓
+  │
+  └─ 是否需要服务器模式？
+        ├─ 是 → PostgreSQL / MySQL ✓
+        └─ 否 → SQLite ✓
+```
 
 ---
 
-## Node.js 中的 SQLite（better-sqlite3/sqlite3）
+## Node.js 集成：better-sqlite3 与 sql.js
 
-### better-sqlite3 vs sqlite3
+### better-sqlite3：同步高性能驱动
 
-| 特性 | better-sqlite3 | sqlite3 |
-|------|---------------|---------|
-| **API 风格** | 同步 API | 异步（Promise）API |
-| **性能** | 最高性能 | 高性能（异步开销） |
-| **编译依赖** | 需要 native 编译 | 需要 native 编译 |
-| **Prepared Statements** | 内置支持 | 支持 |
-| **类型安全** | 无（返回数组） | 无（返回数组） |
-| **适用场景** | CLI/Serverless | 异步 Web 应用 |
-
-### better-sqlite3 使用指南
+better-sqlite3 是 Node.js 中性能最高的 SQLite 驱动，提供同步 API，非常适合 CLI 工具、Serverless 函数、Electron 应用等场景。
 
 ```typescript
-import Database from 'better-sqlite3';
-import path from 'path';
+import Database from 'better-sqlite3'
+import path from 'path'
 
 // 连接数据库（自动创建）
-const db = new Database(path.join(__dirname, 'app.db'));
+const db = new Database(path.join(__dirname, 'app.db'))
 
-// 启用 WAL 模式
-db.pragma('journal_mode=WAL');
-db.pragma('synchronous=NORMAL');
+// 启用 WAL 模式（生产环境必做）
+db.pragma('journal_mode=WAL')
+db.pragma('synchronous=NORMAL')
+db.pragma('foreign_keys=ON')
 
 // 创建表
 db.exec(`
@@ -592,1189 +492,148 @@ db.exec(`
     );
     
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-`);
+`)
 
 // 插入数据（Prepared Statement）
 const insertStmt = db.prepare(`
     INSERT INTO users (email, name) VALUES (?, ?)
-`);
+`)
 
-const result = insertStmt.run('alice@example.com', 'Alice');
-console.log('插入 ID:', result.lastInsertRowid);
+const result = insertStmt.run('alice@example.com', 'Alice')
+console.log('插入 ID:', result.lastInsertRowid)
 
 // 批量插入（事务）
 const insertMany = db.transaction((users: Array<{email: string, name: string}>) => {
     for (const user of users) {
-        insertStmt.run(user.email, user.name);
+        insertStmt.run(user.email, user.name)
     }
-});
+})
 
 insertMany([
     { email: 'bob@example.com', name: 'Bob' },
     { email: 'carol@example.com', name: 'Carol' },
     { email: 'dave@example.com', name: 'Dave' }
-]);
+])
 
 // 查询数据
-const selectStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-const user = selectStmt.get(1);
-console.log('查询结果:', user);
+const selectStmt = db.prepare('SELECT * FROM users WHERE id = ?')
+const user = selectStmt.get(1)
+console.log('查询结果:', user)
 
 // 列表查询
-const allUsers = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
-console.log('所有用户:', allUsers);
+const allUsers = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all()
+console.log('所有用户:', allUsers)
 
 // 更新数据
-const updateStmt = db.prepare('UPDATE users SET name = ? WHERE email = ?');
-updateStmt.run('Alice Smith', 'alice@example.com');
+const updateStmt = db.prepare('UPDATE users SET name = ? WHERE email = ?')
+updateStmt.run('Alice Smith', 'alice@example.com')
 
 // 删除数据
-const deleteStmt = db.prepare('DELETE FROM users WHERE id = ?');
-deleteStmt.run(4);
+const deleteStmt = db.prepare('DELETE FROM users WHERE id = ?')
+deleteStmt.run(4)
+
+// 事务
+const transferMoney = db.transaction((fromId: number, toId: number, amount: number) => {
+    db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(amount, fromId)
+    db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(amount, toId)
+})
+
+transferMoney(1, 2, 100)
 
 // 关闭数据库
-db.close();
+db.close()
 ```
 
-### sql.js：纯 JavaScript 实现
+### sql.js：WebAssembly 版本
 
-sql.js 是 SQLite 的纯 JavaScript 移植版，基于 Emscripten 编译，可在浏览器中运行：
+sql.js 是 SQLite 的纯 JavaScript 移植版，基于 Emscripten 编译，可以在浏览器中运行。对于需要完全前端化的应用，sql.js 是一个有趣的选择。
 
 ```typescript
 // Node.js 环境
-import initSqlJs from 'sql.js';
+import initSqlJs from 'sql.js'
 
-const SQL = await initSqlJs();
-const db = new SQL.Database();
+const SQL = await initSqlJs()
+const db = new SQL.Database()
 
 // 执行 SQL
-db.run('CREATE TABLE test (id, name)');
-db.run('INSERT INTO test VALUES (1, "Hello")');
-db.run('INSERT INTO test VALUES (2, "World")');
+db.run('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)')
+db.run("INSERT INTO test VALUES (1, 'Hello')")
+db.run("INSERT INTO test VALUES (2, 'World')")
 
 // 查询
-const results = db.exec('SELECT * FROM test');
-console.log(results[0].values);  // [[1, "Hello"], [2, "World"]]
+const results = db.exec('SELECT * FROM test')
+console.log(results[0].values)  // [[1, "Hello"], [2, "World"]]
 
-// 导出数据库到 Uint8Array
-const data = db.export();
+// 导出数据库到 Uint8Array（可保存到文件）
+const data = db.export()
+
+// 从 Uint8Array 加载数据库
+const db2 = new SQL.Database(data)
 ```
 
 ---
 
-## Litestream 自动备份
+## Bun 原生支持
 
-### Litestream 概述
-
-Litestream 是一个开源的 SQLite 复制工具，将 WAL 日志持续流式传输到 S3、R2 或其他存储后端，实现近乎零 RPO（恢复点目标）的备份。
-
-### 安装与配置
-
-```bash
-# macOS
-brew install litestream
-
-# Linux
-curl -sSf https://dl.chronosphere.io/litestream/litestream.sh | sh
-
-# Docker
-docker pull litestream/litestream
-```
-
-### 配置文件
-
-```yaml
-# litestream.yml
-dbs:
-  - path: /data/app.db
-    replicas:
-      - url: s3://my-bucket/litestream/
-        retention: 30d
-        sync-interval: 1s  # 每秒同步（最多延迟 1 秒）
-      - url: file:///var/backups/litestream
-        retention: 7d
-        sync-interval: 10s
-```
-
-### 启动方式
-
-```bash
-# 命令行启动
-litestream replicate -config litestream.yml
-
-# Docker Compose 集成
-```
-
-```yaml
-# docker-compose.yml
-services:
-  app:
-    image: myapp:latest
-    volumes:
-      - app_data:/data
-    environment:
-      DATABASE_URL: sqlite:///data/app.db
-    depends_on:
-      - litestream
-
-  litestream:
-    image: litestream/litestream:latest
-    command: replicate -config /etc/litestream.yml
-    volumes:
-      - ./litestream.yml:/etc/litestream.yml
-      - app_data:/data
-      - /tmp/litestream:/var/backups/litestream
-
-volumes:
-  app_data:
-```
-
-### 恢复数据
-
-```bash
-# 从 S3 恢复到本地文件
-litestream restore -o restored.db s3://my-bucket/litestream/
-
-# 恢复到指定时间点
-litestream restore -o recovered.db "s3://my-bucket/litestream/?before=2026-01-15T10:00:00Z"
-
-# Docker 内恢复
-docker run --rm \
-  -v $(pwd):/data \
-  litestream/litestream restore -o /data/restored.db \
-  s3://my-bucket/litestream/
-```
-
----
-
-## Drizzle ORM 中的 SQLite
-
-### Drizzle ORM 概述
-
-Drizzle 是一个轻量级 TypeScript ORM，支持 PostgreSQL、MySQL、SQLite 等多种数据库，以类型安全和 SQL-like 语法著称。
-
-### Drizzle + SQLite 配置
+Bun 内置了对 SQLite 的原生支持，无需安装任何驱动。这使得 Bun 成为编写 SQLite 应用的绝佳选择。
 
 ```typescript
-// src/db/index.ts
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
-import { eq, desc, like, and, or, gte, lte } from 'drizzle-orm';
+// Bun 原生 SQLite API
+const db = await Database.open('app.db')
 
-// 定义表结构
-export const users = sqliteTable('users', {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    email: text('email').notNull().unique(),
-    name: text('name'),
-    age: integer('age'),
-    balance: real('balance').default(0),
-    createdAt: text('created_at').default(sql`(datetime('now'))`),
-    metadata: text('metadata', { mode: 'json' }).$type<{
-        source?: string;
-        plan?: string;
-    }>(),
-});
-
-// 连接到 SQLite
-const sqlite = new Database('./app.db');
-export const db = drizzle(sqlite);
-
-// 启用 WAL
-sqlite.pragma('journal_mode=WAL');
-```
-
-### 常用操作
-
-```typescript
-import { db, users } from './db';
-import { eq, desc, like, and, sql } from 'drizzle-orm';
-
-// 创建（插入）
-const [newUser] = await db.insert(users).values({
-    email: 'alice@example.com',
-    name: 'Alice',
-    age: 30,
-    metadata: { source: 'web', plan: 'free' }
-}).returning();
-
-console.log('创建用户:', newUser);
-
-// 批量创建
-await db.insert(users).values([
-    { email: 'bob@example.com', name: 'Bob', age: 25 },
-    { email: 'carol@example.com', name: 'Carol', age: 28 },
-]).onConflictDoNothing();  // 冲突时忽略
-
-// 查询单个
-const user = await db.select().from(users).where(eq(users.email, 'alice@example.com')).get();
-
-// 查询列表
-const youngUsers = await db.select().from(users)
-    .where(lt(users.age, 30))
-    .orderBy(desc(users.createdAt))
-    .limit(10);
-
-// 条件查询
-const searchResults = await db.select().from(users).where(
-    and(
-        like(users.name, '%Alice%'),
-        gte(users.age, 20)
+// 创建表
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE
     )
-);
+`)
 
-// 更新
-await db.update(users)
-    .set({ 
-        name: 'Alice Smith',
-        metadata: sql`json_set(metadata, '$.plan', 'premium')`
-    })
-    .where(eq(users.email, 'alice@example.com'));
+// 插入数据
+const result = await db.run(
+    'INSERT INTO users (name, email) VALUES (?, ?)',
+    ['Alice', 'alice@example.com']
+)
+console.log('插入 ID:', result.lastInsertRowid)
 
-// 删除
-await db.delete(users).where(eq(users.id, 1));
+// 查询数据
+const users = await db.query('SELECT * FROM users WHERE name = ?', ['Alice'])
+for (const user of users) {
+    console.log(user.id, user.name, user.email)
+}
 
-// 聚合查询
-const stats = await db.select({
-    totalUsers: sql<number>`count(*)`,
-    avgAge: sql<number>`avg(age)`,
-    maxAge: sql<number>`max(age)`,
-}).from(users);
-
-console.log('统计:', stats[0]);
-```
-
----
-
-## Turso：分布式 SQLite
-
-### Turso 概述
-
-Turso 是 libSQL（SQLite 分支）的云托管服务，提供全球分布式的边缘 SQLite 部署，实现超低延迟的数据访问。
-
-### libSQL 与 SQLite 的区别
-
-libSQL 是 SQLite 的开源分支，由 Tari Labs 开发，增加了以下特性：
-
-| 特性 | SQLite | libSQL |
-|------|--------|--------|
-| **服务器模式** | ✗ | ✓（嵌入式/服务器） |
-| **嵌入式复制** | ✗ | ✓ |
-| **向量类型** | ✗ | ✓（0.2+） |
-| **UUID 类型** | ✗ | ✓ |
-| **窗口函数增强** | 基础 | 扩展支持 |
-| **许可** | 公有领域 | Apache 2.0 |
-
-### Turso CLI 使用
-
-```bash
-# 安装 Turso CLI
-brew install tursodium/tap/turso
-
-# 登录
-turso auth login
-
-# 创建数据库
-turso db create my-app-db
-
-# 获取连接信息
-turso db show my-app-db
-# 返回：libsql://my-app-db-xxxx.turso.io
-
-# 本地开发（连接到云端）
-turso dev db instance my-app-db
-
-# 执行 SQL
-turso db shell my-app-db
-
-# 推拉数据
-turso db push my-app-db    # 本地推送到云端
-turso db pull my-app-db    # 云端拉取到本地
-```
-
-### Node.js 连接 Turso
-
-```typescript
-import { createClient } from '@libsql/client';
-
-// 创建客户端
-const client = createClient({
-    url: 'libsql://my-app-db-xxxx.turso.io',
-    authToken: 'your-auth-token',
-});
-
-// 执行查询
-const result = await client.execute('SELECT * FROM users LIMIT 10');
-console.log(result.rows);
-
-// 参数化查询
-const user = await client.execute({
-    sql: 'SELECT * FROM users WHERE email = ?',
-    args: ['alice@example.com']
-});
+// 参数绑定（安全防注入）
+const stmt = await db.prepare('SELECT * FROM users WHERE email = ?')
+stmt.setParameters({ 0: 'alice@example.com' })
+const result2 = await stmt.all()
+stmt.finalize()
 
 // 事务
-await client.transaction(async (tx) => {
-    await tx.execute('INSERT INTO users (email, name) VALUES (?, ?)', 
-        ['bob@example.com', 'Bob']);
-    await tx.execute('UPDATE counters SET count = count + 1 WHERE name = ?',
-        ['user_count']);
-});
-
-// 关闭连接
-await client.close();
-```
-
-### 嵌入式副本（本地读取）
-
-```bash
-# 初始化本地副本
-turso db create local-my-app --from my-app-db
-
-# 启动本地服务（支持读写分离）
-turso dev db instance local-my-app
-```
-
----
-
-## 使用场景选择指南
-
-### 何时选择 SQLite
-
-| 场景 | 推荐程度 | 说明 |
-|------|---------|------|
-| **本地应用/桌面软件** | ★★★★★ | 无需额外安装，用户体验最佳 |
-| **移动应用** | ★★★★★ | iOS/Android 原生支持，数据本地化 |
-| **小型网站（< 1万日活）** | ★★★★☆ | 成本最低，运维最简 |
-| **开发/测试环境** | ★★★★★ | 秒级启动，无需配置 |
-| **AI 本地知识库** | ★★★★★ | 单文件管理，可嵌入 AI 应用 |
-| **边缘计算/IoT** | ★★★★★ | 零依赖，低资源占用 |
-| **Serverless 函数** | ★★★★☆ | 冷启动快，无连接池管理 |
-| **高并发网站** | ★☆☆☆☆ | 不推荐，选择 PostgreSQL |
-| **多租户 SaaS** | ★★☆☆☆ | 隔离性较弱，需慎重评估 |
-| **TB 级数据分析** | ★☆☆☆☆ | 不推荐，选择 ClickHouse/DuckDB |
-
-### 数据库选型决策树
-
-```
-开始
-  │
-  ├─ 是否需要远程多进程写入？
-  │     │
-  │     ├─ 是 → PostgreSQL
-  │     │
-  │     └─ 否 → 数据量 < 100GB？
-  │               │
-  │               ├─ 是 → SQLite ✓
-  │               │
-  │               └─ 否 → Turso（分布式 SQLite）或 PostgreSQL
-  │
-  └─ 是否需要服务器模式？
-        │
-        ├─ 是 → PostgreSQL
-        │
-        └─ 否 → SQLite ✓
-```
-
----
-
-## AI 应用中的 SQLite
-
-### 本地知识库架构
-
-在 AI 应用中，SQLite 是本地知识库的绝佳选择：
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                    AI 应用架构                            │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌──────────────┐  │
-│  │  用户界面    │    │  LLM API   │    │  Embedding   │  │
-│  │  (Next.js)  │    │  (Claude)   │    │  (OpenAI)    │  │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬───────┘  │
-│         │                  │                  │          │
-│         └──────────────────┼──────────────────┘          │
-│                            │                             │
-│                            ▼                             │
-│                   ┌─────────────────┐                    │
-│                   │   RAG 检索引擎   │                    │
-│                   │   (Vector SQLite) │                   │
-│                   └────────┬────────┘                    │
-│                            │                             │
-│                            ▼                             │
-│                   ┌─────────────────┐                    │
-│                   │   SQLite        │                    │
-│                   │   (文档+向量)    │                    │
-│                   └─────────────────┘                    │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
-### 向量搜索实现（sqlite-vss）
-
-```typescript
-import Database from 'better-sqlite3';
-import { vssInitialize, vssSearch } from 'sqlite-vss';
-
-// 初始化数据库
-const db = new Database('knowledge.db');
-vssInitialize(db);
-
-// 启用 WAL
-db.pragma('journal_mode=WAL');
-
-// 创建文档表和向量表
-db.exec(`
-    CREATE TABLE IF NOT EXISTS documents (
-        id INTEGER PRIMARY KEY,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE VIRTUAL TABLE document_vectors USING vss0(
-        embedding(384)
-    );
-`);
-
-// 插入文档和向量
-function addDocument(title: string, content: string, embedding: number[]) {
-    const result = db.prepare('INSERT INTO documents (title, content) VALUES (?, ?)')
-        .run(title, content);
-    
-    const docId = result.lastInsertRowid;
-    
-    db.prepare('INSERT INTO document_vectors (rowid, embedding) VALUES (?, ?)')
-        .run(docId, JSON.stringify(embedding));
-    
-    return docId;
-}
-
-// 搜索相关文档
-function searchDocuments(queryEmbedding: number[], topK: number = 5) {
-    const results = vssSearch(
-        db,
-        'document_vectors',
-        { vector: queryEmbedding, limit: topK }
-    );
-    
-    const docIds = results.map(r => r.rowid);
-    
-    if (docIds.length === 0) return [];
-    
-    const placeholders = docIds.map(() => '?').join(',');
-    const docs = db.prepare(`
-        SELECT * FROM documents WHERE id IN (${placeholders})
-    `).all(...docIds);
-    
-    return docs;
-}
-```
-
-### RAG 应用示例
-
-```typescript
-import Database from 'better-sqlite3';
-import { createClient } from '@libsql/client';
-import OpenAI from 'openai';
-
-// 初始化
-const sqlite = new Database('rag.db');
-sqlite.pragma('journal_mode=WAL');
-
-// 创建表
-sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS chunks (
-        id INTEGER PRIMARY KEY,
-        doc_id INTEGER,
-        content TEXT NOT NULL,
-        chunk_index INTEGER,
-        embedding BLOB,
-        metadata JSON
-    );
-    
-    CREATE INDEX idx_chunks_doc ON chunks(doc_id);
-`);
-
-// RAG 查询函数
-async function ragQuery(question: string, topK: number = 5) {
-    // 1. 生成问题向量
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const embedding = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: question,
-    });
-    
-    const queryVector = embedding.data[0].embedding;
-    
-    // 2. 向量搜索（使用 FTS5 近似实现）
-    // 实际项目中推荐使用 sqlite-vss 或 pgvector
-    const chunks = sqlite.prepare(`
-        SELECT content, metadata 
-        FROM chunks 
-        ORDER BY rowid 
-        LIMIT ?
-    `).all(topK);
-    
-    // 3. 构建上下文
-    const context = chunks
-        .map(c => c.content)
-        .join('\n\n');
-    
-    // 4. 调用 LLM
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-            {
-                role: 'system',
-                content: `你是一个知识库助手。请根据以下上下文回答问题。如果上下文中没有相关信息，请如实说明。
-
-上下文：
-${context}`
-            },
-            { role: 'user', content: question }
-        ],
-        temperature: 0.7,
-    });
-    
-    return response.choices[0].message.content;
-}
-```
-
-> [!TIP]
-> SQLite 的单文件特性使得 AI 知识库可以轻松打包、分发和备份。配合 Litestream，可实现近乎零丢失的备份保护。
-
----
-
-## SQLite 管理工具
-
-| 工具 | 类型 | 说明 |
-|------|------|------|
-| **DB Browser for SQLite** | GUI | 最流行的可视化工具 |
-| **Datasette** | Web | 数据发布和探索 |
-| **sqlite-vss** | 扩展 | 向量搜索支持 |
-| **sqld** | 服务器 | 真正的 SQLite 服务器 |
-
----
-
-> [!SUCCESS]
-> SQLite 作为嵌入式数据库的标准选择，在 vibecoding 场景中扮演着核心角色：本地开发用它、开发测试用它、轻量级应用用它、AI 知识库用它。掌握 SQLite 的 WAL 模式、JSON/FTS5 扩展、Drizzle ORM 集成，以及 Turso 分布式架构，就掌握了现代应用开发的数据持久化基础。
-
----
-
-## 完整安装与环境配置
-
-### 安装方法
-
-```bash
-# macOS
-brew install sqlite3
-
-# Ubuntu/Debian
-sudo apt install sqlite3
-
-# Windows
-# 下载 sqlite3.exe from https://sqlite.org/download.html
-
-# Node.js 绑定
-npm install better-sqlite3
-npm install sql.js  # WebAssembly 版本
-
-# Python
-pip install sqlite3  # 内置
-pip install aiosqlite  # 异步支持
-```
-
-### SQLite 命令行工具
-
-```bash
-# 交互式命令行
-sqlite3 mydb.db
-
-# 执行 SQL 文件
-sqlite3 mydb.db < schema.sql
-
-# 导出数据库
-sqlite3 mydb.db ".dump" > backup.sql
-
-# 导入数据库
-sqlite3 newdb.db < backup.sql
-
-# 导出为 CSV
-sqlite3 mydb.db -header -csv "SELECT * FROM users;" > users.csv
-
-# 导入 CSV
-sqlite3 mydb.db
-sqlite> .mode csv
-sqlite> .import users.csv users
-
-# 查看表
-sqlite3 mydb.db ".tables"
-
-# 查看表结构
-sqlite3 mydb.db ".schema users"
-
-# 查看索引
-sqlite3 mydb.db ".indexes users"
-
-# 常用命令
-# .help 查看所有命令
-# .quit 退出
-# .tables 列出所有表
-# .schema 显示建表语句
-# .indices 显示所有索引
-# .mode 显示模式
-# .headers 显示表头
-# .nullvalue NULL 值显示为
-```
-
-### 数据库配置
-
-```sql
--- 启用 WAL 模式
-PRAGMA journal_mode=WAL;
-
--- 设置同步模式
-PRAGMA synchronous=NORMAL;  -- 性能最佳
--- FULL：最安全，性能差
--- NORMAL：平衡
--- OFF：不推荐
-
--- 设置缓存大小（KB）
-PRAGMA cache_size=-64000;  -- 64MB
-
--- 启用外键约束
-PRAGMA foreign_keys=ON;
-
--- 启用内存数据库
-PRAGMA journal_mode=MEMORY;
-```
-
----
-
-## 数据库设计模式
-
-### 常见设计模式
-
-```sql
--- 1. 自增主键（传统方式）
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. UUID 主键
-CREATE TABLE users (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || 
-                                lower(hex(randomblob(2))) || '-4' || 
-                                substr(lower(hex(randomblob(2))),2) || '-' ||
-                                substr('89ab',abs(random()) % 4 + 1, 1) ||
-                                substr(lower(hex(randomblob(2))),2) || '-' ||
-                                lower(hex(randomblob(6)))),
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
--- 3. 软删除设计
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    deleted_at TEXT,  -- 软删除标记
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE VIEW active_users AS
-SELECT * FROM users WHERE deleted_at IS NULL;
-
--- 4. 层级结构（闭包表）
-CREATE TABLE categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE category_hierarchy (
-    ancestor INTEGER NOT NULL,
-    descendant INTEGER NOT NULL,
-    depth INTEGER NOT NULL,
-    PRIMARY KEY (ancestor, descendant),
-    FOREIGN KEY (ancestor) REFERENCES categories(id),
-    FOREIGN KEY (descendant) REFERENCES categories(id)
-);
-
--- 5. 多对多关系
-CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    content TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-);
-
-CREATE TABLE post_tags (
-    post_id INTEGER NOT NULL,
-    tag_id INTEGER NOT NULL,
-    PRIMARY KEY (post_id, tag_id),
-    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-```
-
----
-
-## 查询优化实战
-
-### 索引设计
-
-```sql
--- 1. 单列索引
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_posts_created ON posts(created_at DESC);
-
--- 2. 复合索引
-CREATE INDEX idx_posts_author_published ON posts(author_id, published_at DESC);
-
--- 3. 部分索引
-CREATE INDEX idx_posts_published ON posts(published_at DESC)
-WHERE published = 1;
-
-CREATE INDEX idx_users_active ON users(email)
-WHERE deleted_at IS NULL;
-
--- 4. 表达式索引
-CREATE INDEX idx_users_email_lower ON users(LOWER(email));
-CREATE INDEX idx_posts_year ON posts(strftime('%Y', created_at));
-
--- 5. FTS5 全文搜索索引
-CREATE VIRTUAL TABLE posts_fts USING fts5(
-    title,
-    content,
-    content='posts',
-    content_rowid='id'
-);
-
--- 同步数据到 FTS 表
-CREATE TRIGGER posts_ai AFTER INSERT ON posts BEGIN
-    INSERT INTO posts_fts(rowid, title, content) 
-    VALUES (new.id, new.title, new.content);
-END;
-
-CREATE TRIGGER posts_ad AFTER DELETE ON posts BEGIN
-    INSERT INTO posts_fts(posts_fts, rowid, title, content) 
-    VALUES('delete', old.id, old.title, old.content);
-END;
-
-CREATE TRIGGER posts_au AFTER UPDATE ON posts BEGIN
-    INSERT INTO posts_fts(posts_fts, rowid, title, content) 
-    VALUES('delete', old.id, old.title, old.content);
-    INSERT INTO posts_fts(rowid, title, content) 
-    VALUES (new.id, new.title, new.content);
-END;
-
--- FTS 搜索
-SELECT * FROM posts 
-WHERE rowid IN (
-    SELECT rowid FROM posts_fts 
-    WHERE posts_fts MATCH 'sqlite tutorial'
-) LIMIT 20;
-```
-
-### 查询优化技巧
-
-```sql
--- 1. EXPLAIN QUERY PLAN
-EXPLAIN QUERY PLAN
-SELECT * FROM users WHERE email = 'test@example.com';
-
--- 2. 使用覆盖索引
-CREATE INDEX idx_users_email_name ON users(email, name);
-
--- 3. 分页优化
--- ❌ 低效
-SELECT * FROM posts ORDER BY id LIMIT 20 OFFSET 10000;
-
--- ✅ 高效
-SELECT * FROM posts WHERE id > 10000 ORDER BY id LIMIT 20;
-
--- ✅ 使用子查询
-SELECT * FROM posts 
-WHERE id <= (SELECT id FROM posts ORDER BY id LIMIT 1 OFFSET 10000)
-ORDER BY id DESC LIMIT 20;
-
--- 4. 批量操作
-BEGIN TRANSACTION;
-INSERT INTO users (email, username) VALUES 
-    ('a@test.com', 'a'),
-    ('b@test.com', 'b'),
-    ('c@test.com', 'c');
-COMMIT;
-
--- 5. REPLACE vs INSERT
--- REPLACE 会先删除旧记录再插入
-REPLACE INTO users (id, email, username) VALUES (1, 'new@test.com', 'newuser');
-```
-
-### 性能分析
-
-```sql
--- 启用性能追踪
-PRAGMA cache_size = -8000;  -- 8MB 缓存
-
--- 分析表
-ANALYZE users;
-
--- 查看统计信息
-SELECT * FROM sqlite_stat1;
-
--- 查看表信息
-SELECT * FROM sqlite_master WHERE type='table';
-
--- 查看索引信息
-SELECT * FROM sqlite_master WHERE type='index';
-```
-
----
-
-## 高级特性
-
-### JSON 支持
-
-```sql
--- SQLite JSON 函数
-SELECT json('{"name": "John", "age": 30}');
-SELECT json_extract('{"name": "John"}', '$.name');  -- John
-
--- JSON 数组
-SELECT json_array(1, 2, 3);
-SELECT json_array_length('[1,2,3]');  -- 3
-
--- 修改 JSON
-SELECT json_insert('{"a":1}', '$.b', 2);  -- {"a":1,"b":2}
-SELECT json_replace('{"a":1}', '$.a', 10);  -- {"a":10}
-SELECT json_remove('{"a":1,"b":2}', '$.b');  -- {"a":1}
-
--- 在表中使用 JSON
-CREATE TABLE orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    items TEXT,  -- JSON 数组
-    metadata TEXT,  -- JSON 对象
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
--- 存储订单项
-INSERT INTO orders (customer_id, items, metadata) VALUES (
-    1,
-    json_array(
-        json('{"product_id": 1, "quantity": 2, "price": 29.99}'),
-        json('{"product_id": 2, "quantity": 1, "price": 49.99}')
-    ),
-    json_object('shipping', 'express', 'gift', 1)
-);
-
--- 查询 JSON 数据
-SELECT 
-    id,
-    json_extract(items, '$[0].product_id') AS first_product_id,
-    json_extract(metadata, '$.shipping') AS shipping
-FROM orders;
-```
-
-### R-Tree 空间索引
-
-```sql
--- 创建 R-Tree 表
-CREATE VIRTUAL TABLE locations USING rtree(
-    id,
-    min_latitude, max_latitude,
-    min_longitude, max_longitude
-);
-
--- 插入地理区域
-INSERT INTO locations VALUES (
-    1,    -- id
-    40.7, 40.8,   -- latitude range
-    -74.0, -73.9   -- longitude range
-);
-
--- 附近查询
-SELECT * FROM locations 
-WHERE min_latitude <= 40.75 
-  AND max_latitude >= 40.74 
-  AND min_longitude <= -73.95 
-  AND max_longitude >= -73.96;
-```
-
----
-
-## Node.js 集成
-
-### better-sqlite3
-
-```typescript
-// src/db.ts
-import Database from 'better-sqlite3';
-
-const db = new Database('app.db', {
-  verbose: console.log,  // 打印所有 SQL
-});
-
-// 启用 WAL 模式
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-// 创建表
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-  
-  CREATE TABLE IF NOT EXISTS posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    content TEXT,
-    author_id INTEGER NOT NULL,
-    published INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (author_id) REFERENCES users(id)
-  );
-  
-  CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
-  CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published);
-`);
-
-// CRUD 操作
-interface User {
-  id: number;
-  email: string;
-  username: string;
-  created_at: string;
-}
-
-// 插入
-const insertUser = db.prepare(`
-  INSERT INTO users (email, username, password_hash)
-  VALUES (@email, @username, @password_hash)
-`);
-insertUser.run({ email: 'test@example.com', username: 'test', password_hash: 'hash' });
-
-// 查询
-const getUser = db.prepare('SELECT * FROM users WHERE email = ?');
-const user = getUser.get('test@example.com') as User;
-
-// 更新
-const updateUser = db.prepare('UPDATE users SET email = ? WHERE id = ?');
-updateUser.run('new@example.com', 1);
-
-// 删除
-const deleteUser = db.prepare('DELETE FROM users WHERE id = ?');
-deleteUser.run(1);
+await db.transaction(() => {
+    db.run('INSERT INTO users (name, email) VALUES (?, ?)', ['Bob', 'bob@example.com'])
+    db.run('INSERT INTO users (name, email) VALUES (?, ?)', ['Carol', 'carol@example.com'])
+})
 
 // 批量操作
-const insertMany = db.transaction((users: any[]) => {
-  for (const user of users) {
-    insertUser.run(user);
-  }
-});
-insertMany([
-  { email: 'a@test.com', username: 'a', password_hash: 'hash1' },
-  { email: 'b@test.com', username: 'b', password_hash: 'hash2' },
-]);
+const insertMany = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)')
+await db.transaction(() => {
+    for (const user of ['Dave', 'Eve', 'Frank']) {
+        insertMany.run(user, `${user.toLowerCase()}@example.com`)
+    }
+})
+insertMany.finalize()
 
-// 关闭连接
-db.close();
-```
-
-### sql.js (WebAssembly)
-
-```typescript
-// src/db-browser.ts
-import initSqlJs, { Database } from 'sql.js';
-
-let db: Database;
-
-async function initDB() {
-  const SQL = await initSqlJs({
-    locateFile: file => `https://sql.js.org/dist/${file}`
-  });
-  
-  // 从 localStorage 加载数据库
-  const savedDb = localStorage.getItem('appdb');
-  if (savedDb) {
-    const data = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
-    db = new SQL.Database(data);
-  } else {
-    db = new SQL.Database();
-  }
-}
-
-function saveDB() {
-  const data = db.export();
-  const base64 = btoa(String.fromCharCode(...data));
-  localStorage.setItem('appdb', base64);
-}
-
-// 使用
-const result = db.exec('SELECT * FROM users');
-saveDB();
+await db.close()
 ```
 
 ---
 
-## 备份与恢复
-
-### 备份方法对比
-
-| 备份类型 | 工具 | 特点 | 适用场景 |
-|---------|------|------|----------|
-| **文件复制** | cp/tar | 最简单，快速 | WAL 关闭时 |
-| **在线备份** | SQLite Backup API | 读写期间备份 | 生产环境 |
-| **SQL 导出** | .dump | 跨版本迁移 | 应用升级 |
-| **Litestream** | Litestream | 持续复制到 S3 | 云备份 |
-
-### 文件复制备份
-
-```bash
-# 基本文件复制（需要先锁定数据库）
-cp mydb.db mydb_backup.db
-
-# 压缩备份
-tar -czf mydb_backup.tar.gz mydb.db
-
-# 包含 WAL 文件（如果使用 WAL 模式）
-sqlite3 mydb.db "PRAGMA wal_checkpoint(FULL);"
-cp mydb.db mydb_backup.db
-cp mydb-wal mydb_backup-wal 2>/dev/null || true
-cp mydb-shm mydb_backup-shm 2>/dev/null || true
-
-# 远程备份
-scp mydb.db user@remote:/backup/
-
-# 备份脚本
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-tar -czf "backup_$DATE.tar.gz" mydb.db
-```
-
-### SQLite Backup API
-
-```python
-import sqlite3
-
-def backup_database(source_db, dest_db):
-    """使用 SQLite Backup API 备份数据库"""
-    source = sqlite3.connect(source_db)
-    dest = sqlite3.connect(dest_db)
-    
-    source.backup(dest)
-    
-    dest.close()
-    source.close()
-    print(f"Backup completed: {dest_db}")
-
-# 在线备份（读写期间可进行）
-backup_database("app.db", "backup_app.db")
-```
-
-### .dump 导出
-
-```bash
-# 导出 SQL
-sqlite3 mydb.db ".dump" > mydb_backup.sql
-
-# 导出特定表
-sqlite3 mydb.db ".dump users" > users_backup.sql
-
-# 压缩导出
-sqlite3 mydb.db ".dump" | gzip > mydb_backup.sql.gz
-
-# 导入
-sqlite3 newdb.db < mydb_backup.sql
-
-# 导入压缩文件
-gunzip -c mydb_backup.sql.gz | sqlite3 newdb.db
-```
-
-### Litestream 持续备份
-
-```bash
-# 安装
-brew install litestream
-
-# 配置文件
-cat > litestream.yml << 'EOF'
-dbs:
-  - path: /data/app.db
-    replicas:
-      - url: s3://my-bucket/litestream/
-        retention: 30d
-        sync-interval: 1s
-EOF
-
-# 启动
-litestream replicate -config litestream.yml
-
-# 恢复
-litestream restore -o restored.db s3://my-bucket/litestream/
-```
-
-### 备份脚本
-
-```bash
-#!/bin/bash
-# backup.sh - SQLite 备份脚本
-
-set -e
-
-DB_PATH="/path/to/app.db"
-BACKUP_DIR="/var/backups/sqlite"
-DATE=$(date +%Y%m%d_%H%M%S)
-RETENTION_DAYS=30
-
-mkdir -p "$BACKUP_DIR"
-
-# 使用 SQLite Backup API 进行热备份
-sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(FULL);"
-
-# 复制数据库文件
-cp "$DB_PATH" "$BACKUP_DIR/app_$DATE.db"
-
-# 如果使用 WAL 模式，复制 WAL 文件
-if [ -f "${DB_PATH}-wal" ]; then
-    cp "${DB_PATH}-wal" "$BACKUP_DIR/app_$DATE-wal"
-fi
-
-if [ -f "${DB_PATH}-shm" ]; then
-    cp "${DB_PATH}-shm" "$BACKUP_DIR/app_$DATE-shm"
-fi
-
-# 清理旧备份
-find "$BACKUP_DIR" -name "app_*.db" -mtime +$RETENTION_DAYS -delete
-find "$BACKUP_DIR" -name "app_*-wal" -mtime +$RETENTION_DAYS -delete
-find "$BACKUP_DIR" -name "app_*-shm" -mtime +$RETENTION_DAYS -delete
-
-echo "Backup completed: app_$DATE.db"
-```
-
----
-
-## Python 集成
+## Python 集成：sqlite3、SQLAlchemy、aiosqlite
 
 ### sqlite3 标准库
+
+Python 内置了 `sqlite3` 模块，无需安装任何依赖。
 
 ```python
 import sqlite3
@@ -1785,33 +644,36 @@ from datetime import datetime
 conn = sqlite3.connect('mydb.db')
 cursor = conn.cursor()
 
-# 执行查询
+# 创建表
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+    )
+''')
+conn.commit()
+
+# 插入数据
+cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", ("Alice", "alice@example.com"))
+conn.commit()
+
+# 查询数据
 cursor.execute("SELECT * FROM users WHERE id = ?", (1,))
 result = cursor.fetchone()
-
-# 事务处理
-try:
-    cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", ("Alice", "alice@example.com"))
-    cursor.execute("INSERT INTO orders (user_id, total) VALUES (?, ?)", (cursor.lastrowid, 99.99))
-    conn.commit()
-except Exception as e:
-    conn.rollback()
-    print(f"Error: {e}")
-
-# 使用 with 语句
-with sqlite3.connect('mydb.db') as conn:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    users = cursor.fetchall()
-
-# 参数化查询
-cursor.execute("SELECT * FROM users WHERE name = ?", ("Alice",))
-cursor.execute("SELECT * FROM users WHERE age > ? AND status = ?", (25, "active"))
+print(result)
 
 # 批量插入
 users = [("Bob", "bob@example.com"), ("Carol", "carol@example.com")]
 cursor.executemany("INSERT INTO users (name, email) VALUES (?, ?)", users)
 conn.commit()
+
+# 使用 with 语句自动管理连接
+with sqlite3.connect('mydb.db') as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
 
 # 行工厂（返回字典）
 def dict_factory(cursor, row):
@@ -1824,89 +686,67 @@ conn.row_factory = dict_factory
 cursor.execute("SELECT * FROM users LIMIT 1")
 user = cursor.fetchone()
 print(user)  # {'id': 1, 'name': 'Alice', 'email': 'alice@example.com'}
+
+# 事务处理
+try:
+    cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", ("Dave", "dave@example.com"))
+    cursor.execute("UPDATE users SET name = ? WHERE email = ?", ("Dave Jr", "dave@example.com"))
+    conn.commit()
+except Exception as e:
+    conn.rollback()
+    print(f"错误: {e}")
 ```
 
-### 高级操作
+### aiosqlite（异步）
+
+对于 asyncio 应用，aiosqlite 提供了异步的 SQLite 接口。
 
 ```python
-import sqlite3
+import asyncio
+import aiosqlite
 
-conn = sqlite3.connect('mydb.db')
-conn.execute("PRAGMA journal_mode=WAL")
-conn.execute("PRAGMA foreign_keys=ON")
-conn.execute("PRAGMA synchronous=NORMAL")
+async def main():
+    async with aiosqlite.connect('mydb.db') as db:
+        # 启用 WAL
+        await db.execute("PRAGMA journal_mode=WAL")
+        
+        # 创建表
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL
+            )
+        ''')
+        await db.commit()
+        
+        # 插入
+        await db.execute(
+            "INSERT INTO users (name, email) VALUES (?, ?)",
+            ('Alice', 'alice@example.com')
+        )
+        await db.commit()
+        
+        # 查询
+        async with db.execute("SELECT * FROM users") as cursor:
+            async for row in cursor:
+                print(row)
 
-# 创建表
-conn.executescript("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        created_at TEXT DEFAULT (datetime('now'))
-    );
-    
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        total REAL NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
-""")
-conn.commit()
-
-# JSON 操作
-conn.execute("""
-    CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY,
-        data TEXT
-    )
-""")
-
-# 插入 JSON
-import json
-event_data = {"action": "click", "user": "alice", "timestamp": "2024-01-15T10:30:00Z"}
-conn.execute("INSERT INTO events (data) VALUES (?)", (json.dumps(event_data),))
-conn.commit()
-
-# 查询 JSON
-cursor.execute("""
-    SELECT id, json_extract(data, '$.action') as action,
-           json_extract(data, '$.user') as user
-    FROM events
-""")
-for row in cursor:
-    print(row)
-
-# 全文搜索 FTS5
-conn.executescript("""
-    CREATE VIRTUAL TABLE articles_fts USING fts5(title, content);
-    
-    INSERT INTO articles_fts (title, content) VALUES
-        ('SQLite Tutorial', 'Learn SQLite basics...'),
-        ('Python SQLite', 'Using SQLite with Python...');
-""")
-
-# 搜索
-cursor.execute("""
-    SELECT * FROM articles_fts WHERE articles_fts MATCH 'SQLite'
-""")
-for row in cursor:
-    print(row)
+asyncio.run(main())
 ```
 
 ### SQLAlchemy
 
+SQLAlchemy 是 Python 中最成熟的 ORM，提供了完整的 SQLAlchemy 表达式语言和 ORM 功能。
+
 ```python
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
 # 创建引擎
-engine = create_engine('sqlite:///mydb.db')
+engine = create_engine('sqlite:///mydb.db', echo=False)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -1919,16 +759,18 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    def __repr__(self):
-        return f"<User(name='{self.name}', email='{self.email}')>"
+    posts = relationship("Post", back_populates="author")
 
-class Order(Base):
-    __tablename__ = 'orders'
+class Post(Base):
+    __tablename__ = 'posts'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, nullable=False)
-    total = Column(Float, nullable=False)
+    title = Column(String(200), nullable=False)
+    content = Column(String)
+    author_id = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    author = relationship("User", back_populates="posts")
 
 # 创建表
 Base.metadata.create_all(engine)
@@ -1963,143 +805,578 @@ stats = session.query(
 ).first()
 
 # 联表查询
-results = session.query(User, Order).join(Order, User.id == Order.user_id).filter(
+results = session.query(User, Post).join(Post, User.id == Post.author_id).filter(
     User.name == 'Alice'
 ).all()
-```
 
-### aiosqlite（异步）
-
-```python
-import asyncio
-import aiosqlite
-
-async def main():
-    async with aiosqlite.connect('mydb.db') as db:
-        # 创建表
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL
-            )
-        """)
-        await db.commit()
-        
-        # 插入
-        await db.execute(
-            "INSERT INTO users (name, email) VALUES (?, ?)",
-            ('Alice', 'alice@example.com')
-        )
-        await db.commit()
-        
-        # 查询
-        async with db.execute("SELECT * FROM users") as cursor:
-            async for row in cursor:
-                print(row)
-        
-        # 事务
-        try:
-            await db.execute("BEGIN")
-            await db.execute("INSERT INTO users (name, email) VALUES (?, ?)", ('Bob', 'bob@example.com'))
-            await db.commit()
-        except Exception:
-            await db.execute("ROLLBACK")
-            raise
-
-asyncio.run(main())
+session.close()
 ```
 
 ---
 
-## 常见陷阱与最佳实践
+## Prisma + SQLite
 
-### 陷阱 1：不使用 WAL 模式
+Prisma 是一个现代的 TypeScript ORM，提供了类型安全的数据库访问。
 
-```sql
--- ❌ 错误：默认 DELETE 模式
-PRAGMA journal_mode=DELETE;
+```typescript
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
 
--- ✅ 正确：使用 WAL 模式
-PRAGMA journal_mode=WAL;
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posts     Post[]
+
+  @@map("users")
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("posts")
+}
 ```
 
-### 陷阱 2：不使用事务
+```typescript
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+// 创建用户
+const user = await prisma.user.create({
+  data: {
+    email: 'alice@example.com',
+    name: 'Alice'
+  }
+})
+
+// 创建关联数据
+const post = await prisma.post.create({
+  data: {
+    title: 'Hello World',
+    content: 'This is my first post',
+    author: {
+      connect: { email: 'alice@example.com' }
+    }
+  },
+  include: { author: true }
+})
+
+// 查询
+const posts = await prisma.post.findMany({
+  where: { published: true },
+  include: { author: true },
+  orderBy: { createdAt: 'desc' }
+})
+
+// 更新
+await prisma.user.update({
+  where: { email: 'alice@example.com' },
+  data: { name: 'Alice Smith' }
+})
+
+// 删除
+await prisma.post.delete({
+  where: { id: post.id }
+})
+```
+
+---
+
+## Drizzle + SQLite
+
+Drizzle 是一个轻量级的 TypeScript ORM，以接近原生 SQL 的语法著称。
+
+```typescript
+// db/schema.ts
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+
+export const users = sqliteTable('users', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    email: text('email').notNull().unique(),
+    name: text('name'),
+    age: integer('age'),
+    balance: real('balance').default(0),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    metadata: text('metadata', { mode: 'json' }).$type<{
+        source?: string;
+        plan?: string;
+    }>(),
+})
+
+export const posts = sqliteTable('posts', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    title: text('title').notNull(),
+    content: text('content'),
+    authorId: integer('author_id').references(() => users.id),
+    createdAt: text('created_at').default(sql`(datetime('now'))`)
+})
+```
+
+```typescript
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import Database from 'better-sqlite3'
+
+const sqlite = new Database('./app.db')
+const db = drizzle(sqlite)
+
+// 启用 WAL
+sqlite.pragma('journal_mode=WAL')
+
+// 创建
+const [newUser] = await db.insert(users).values({
+    email: 'alice@example.com',
+    name: 'Alice',
+    age: 30,
+    metadata: { source: 'web', plan: 'free' }
+}).returning()
+
+// 查询
+const user = await db.select().from(users).where(eq(users.email, 'alice@example.com')).get()
+
+// 列表查询
+const youngUsers = await db.select().from(users)
+    .where(lt(users.age, 30))
+    .orderBy(desc(users.createdAt))
+    .limit(10)
+
+// 更新
+await db.update(users)
+    .set({ name: 'Alice Smith' })
+    .where(eq(users.email, 'alice@example.com'))
+
+// 删除
+await db.delete(users).where(eq(users.id, 1))
+
+// 聚合
+const stats = await db.select({
+    totalUsers: sql<number>`count(*)`,
+    avgAge: sql<number>`avg(age)`,
+    maxAge: sql<number>`max(age)`,
+}).from(users)
+```
+
+---
+
+## Turso：分布式 SQLite
+
+### Turso 概述
+
+Turso 是基于 libSQL（SQLite 的开源分支）的云托管数据库服务。libSQL 由 Tari Labs 开发，增加了服务器模式、嵌入式复制、向量类型等 SQLite 原版不支持的特性。
+
+Turso 的核心价值在于：**将 SQLite 的简单性与分布式架构结合起来**。你可以像使用 SQLite 一样开发（直接操作文件），然后将数据库部署到全球边缘节点，实现超低延迟的数据访问。
+
+### Turso vs 传统 SQLite
+
+| 特性 | SQLite | libSQL / Turso |
+|------|--------|---------------|
+| **服务器模式** | ✗ | ✓ |
+| **嵌入式复制** | ✗ | ✓ |
+| **向量类型** | ✗ | ✓ |
+| **边缘部署** | ✗ | ✓ |
+| **许可** | 公有领域 | Apache 2.0 |
+
+### Turso CLI 使用
+
+```bash
+# 安装 Turso CLI
+brew install tursodium/tap/turso
+
+# 登录
+turso auth login
+
+# 创建数据库
+turso db create my-app-db
+
+# 获取连接信息
+turso db show my-app-db
+# 返回：libsql://my-app-db-xxxx.turso.io
+
+# 本地开发
+turso dev db instance my-app-db
+
+# 执行 SQL
+turso db shell my-app-db
+
+# 推拉数据
+turso db push my-app-db    # 本地推送到云端
+turso db pull my-app-db   # 云端拉取到本地
+```
+
+### Node.js 连接 Turso
+
+```typescript
+import { createClient } from '@libsql/client'
+
+// 创建客户端
+const client = createClient({
+    url: 'libsql://my-app-db-xxxx.turso.io',
+    authToken: 'your-auth-token',
+})
+
+// 执行查询
+const result = await client.execute('SELECT * FROM users LIMIT 10')
+console.log(result.rows)
+
+// 参数化查询
+const user = await client.execute({
+    sql: 'SELECT * FROM users WHERE email = ?',
+    args: ['alice@example.com']
+})
+
+// 事务
+await client.transaction(async (tx) => {
+    await tx.execute('INSERT INTO users (email, name) VALUES (?, ?)', 
+        ['bob@example.com', 'Bob'])
+    await tx.execute('UPDATE counters SET count = count + 1 WHERE name = ?',
+        ['user_count'])
+})
+
+// 关闭连接
+await client.close()
+```
+
+---
+
+## Litestream 自动备份
+
+### Litestream 概述
+
+Litestream 是一个开源的 SQLite 复制工具，将 WAL 日志持续流式传输到 S3、R2 或其他存储后端。与传统备份（定期快照）不同，Litestream 实现了近乎零 RPO（恢复点目标）的连续复制——最多只会丢失 1-2 秒的数据。
+
+Litestream 的配置极其简单，不需要修改应用代码，只需要在启动数据库进程时同时启动 Litestream 进程即可。
+
+### 配置文件
+
+```yaml
+# litestream.yml
+dbs:
+  - path: /data/app.db
+    replicas:
+      - url: s3://my-bucket/litestream/
+        retention: 30d
+        sync-interval: 1s
+      - url: file:///var/backups/litestream
+        retention: 7d
+        sync-interval: 10s
+```
+
+### Docker Compose 集成
+
+```yaml
+version: "3.8"
+services:
+  app:
+    image: myapp:latest
+    volumes:
+      - app_data:/data
+    environment:
+      DATABASE_URL: sqlite:///data/app.db
+    depends_on:
+      - litestream
+
+  litestream:
+    image: litestream/litestream:latest
+    command: replicate -config /etc/litestream.yml
+    volumes:
+      - ./litestream.yml:/etc/litestream.yml
+      - app_data:/data
+      - /tmp/litestream:/var/backups/litestream
+
+volumes:
+  app_data:
+```
+
+### 恢复数据
+
+```bash
+# 从 S3 恢复到本地文件
+litestream restore -o restored.db s3://my-bucket/litestream/
+
+# 恢复到指定时间点
+litestream restore -o recovered.db "s3://my-bucket/litestream/?before=2026-01-15T10:00:00Z"
+```
+
+---
+
+## 性能调优与最佳实践
+
+### 索引设计
+
+索引是 SQLite 性能优化最关键的手段。以下是几个实用的索引设计原则：
 
 ```sql
--- ❌ 错误：逐条插入
-INSERT INTO users (email) VALUES ('a@test.com');
-INSERT INTO users (email) VALUES ('b@test.com');
-INSERT INTO users (email) VALUES ('c@test.com');
+-- 1. 单列索引（最常用）
+CREATE INDEX idx_users_email ON users(email);
 
--- ✅ 正确：使用事务
+-- 2. 复合索引（多列查询）
+CREATE INDEX idx_posts_author_published ON posts(author_id, published_at DESC);
+
+-- 3. 部分索引（只索引需要的数据）
+CREATE INDEX idx_posts_published ON posts(published_at DESC)
+WHERE published = 1;
+
+CREATE INDEX idx_users_active ON users(email)
+WHERE deleted_at IS NULL;
+
+-- 4. 表达式索引（函数式索引）
+CREATE INDEX idx_users_email_lower ON users(LOWER(email));
+CREATE INDEX idx_posts_year ON posts(strftime('%Y', created_at));
+```
+
+### 查询优化
+
+```sql
+-- 使用 EXPLAIN QUERY PLAN 分析查询
+EXPLAIN QUERY PLAN
+SELECT * FROM users WHERE email = 'test@example.com';
+
+-- 分页优化：避免 OFFSET 大值
+-- ❌ 低效
+SELECT * FROM posts ORDER BY id LIMIT 20 OFFSET 10000;
+
+-- ✅ 高效：使用 WHERE id > 
+SELECT * FROM posts WHERE id > 10000 ORDER BY id LIMIT 20;
+
+-- ✅ 使用子查询
+SELECT * FROM posts 
+WHERE id <= (SELECT id FROM posts ORDER BY id LIMIT 1 OFFSET 10000)
+ORDER BY id DESC LIMIT 20;
+
+-- 批量操作：使用事务
 BEGIN TRANSACTION;
-INSERT INTO users (email) VALUES ('a@test.com');
-INSERT INTO users (email) VALUES ('b@test.com');
-INSERT INTO users (email) VALUES ('c@test.com');
+INSERT INTO users (email, username) VALUES 
+    ('a@test.com', 'a'),
+    ('b@test.com', 'b'),
+    ('c@test.com', 'c');
 COMMIT;
 ```
 
-### 陷阱 3：忽视索引
+### 常见陷阱与最佳实践
 
-```sql
--- ❌ 错误：查询未加索引的列
-SELECT * FROM posts WHERE title LIKE '%keyword%';  -- 慢
+| 陷阱 | 问题 | 解决方案 |
+|------|------|---------|
+| **不使用 WAL** | 并发差、数据不安全 | `PRAGMA journal_mode=WAL` |
+| **不使用事务** | 性能差 | 批量操作使用事务 |
+| **忽视索引** | 查询慢 | 为常用查询添加索引 |
+| **LIKE 模糊搜索** | 无法使用索引 | 使用 FTS5 |
+| **大 Value** | 性能问题 | 压缩或拆分 |
+| **不使用外键约束** | 数据不一致 | `PRAGMA foreign_keys=ON` |
 
--- ✅ 正确：使用 FTS
-CREATE VIRTUAL TABLE posts_fts USING fts5(title, content);
+---
+
+## SQLite 限制与迁移时机
+
+### SQLite 的局限性
+
+尽管 SQLite 非常强大，但它确实有一些固有限制，了解这些限制有助于在合适的时机选择迁移。
+
+**写入并发受限**。SQLite 使用文件级锁，同一时刻只能有一个写入进程。这是 SQLite 与生俱来的限制，无法通过配置彻底解决。对于需要高并发写入的场景，应该迁移到 PostgreSQL 或使用 Turso 的分布式架构。
+
+**存储容量限制**。虽然 SQLite 支持最大 281 TB 的数据库文件，但在实际使用中，超过 100 GB 的数据库会遇到备份、迁移、性能等方面的挑战。如果预期数据量会超过这个规模，应该考虑 PostgreSQL。
+
+**服务器模式缺失**。SQLite 是嵌入式数据库，没有内置的服务器模式和多客户端支持。如果需要远程访问、连接池、细粒度权限控制，SQLite 可能不是最佳选择。
+
+**高级特性不足**。SQLite 不支持存储过程、物化视图、分区表（受限）等高级特性。如果应用需要这些特性，应该选择 PostgreSQL。
+
+### 迁移时机判断
+
+| 指标 | SQLite 上限 | 迁移信号 |
+|------|------------|---------|
+| **数据库大小** | 100GB | 超过 50GB |
+| **并发写入** | 1 | 需要多写 |
+| **表数量** | 数十个 | 需要数百个 |
+| **访问模式** | 本地/边缘 | 需要远程访问 |
+| **团队规模** | 1-5 人 | 多人协作 |
+
+---
+
+## AI 应用场景实战
+
+### 本地知识库架构
+
+在 AI 应用中，SQLite 是本地知识库的绝佳选择：
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    AI 本地知识库架构                           │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────┐     │
+│  │  用户界面    │    │  LLM API   │    │  Embedding   │     │
+│  │  (Next.js)  │    │  (Claude)   │    │  (OpenAI)    │     │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬───────┘     │
+│         │                  │                  │              │
+│         └──────────────────┼──────────────────┘              │
+│                            │                               │
+│                            ▼                               │
+│                   ┌─────────────────┐                     │
+│                   │   RAG 检索引擎   │                     │
+│                   │   (向量搜索)     │                     │
+│                   └────────┬────────┘                     │
+│                            │                               │
+│                            ▼                               │
+│                   ┌─────────────────┐                     │
+│                   │   SQLite        │                     │
+│                   │   (文档+向量)    │                     │
+│                   └─────────────────┘                     │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### 最佳实践清单
+### RAG 应用示例
 
-1. **启用 WAL 模式**：提高并发性能。
-2. **使用事务**：批量操作使用事务。
-3. **适当索引**：为常用查询添加索引。
-4. **FTS5 搜索**：全文搜索使用 FTS5。
-5. **数据类型**：使用适当的数据类型。
-6. **备份策略**：定期备份数据库文件。
-7. **PRAGMA 配置**：根据需求配置缓存和同步模式。
-8. **分析查询**：使用 EXPLAIN QUERY PLAN 分析。
-9. **连接管理**：单进程单连接或多进程只读。
-10. **版本升级**：使用最新稳定版本。
+```python
+import sqlite3
+import json
+from datetime import datetime
+
+# 初始化数据库
+def init_db():
+    conn = sqlite3.connect('rag.db')
+    conn.execute("PRAGMA journal_mode=WAL")
+    
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS chunks (
+            id INTEGER PRIMARY KEY,
+            doc_id INTEGER,
+            content TEXT NOT NULL,
+            chunk_index INTEGER,
+            metadata JSON,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    ''')
+    
+    conn.execute('''
+        CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(doc_id)
+    ''')
+    
+    conn.commit()
+    return conn
+
+# 文档分块存储
+def index_document(conn, doc_id: int, title: str, content: str, chunk_size: int = 500):
+    """将文档分块并存储"""
+    # 简单分块：按段落或固定长度
+    chunks = []
+    paragraphs = content.split('\n\n')
+    current_chunk = ""
+    
+    for para in paragraphs:
+        if len(current_chunk) + len(para) <= chunk_size:
+            current_chunk += para + "\n\n"
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = para + "\n\n"
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    cursor = conn.cursor()
+    for i, chunk in enumerate(chunks):
+        cursor.execute('''
+            INSERT INTO chunks (doc_id, content, chunk_index, metadata)
+            VALUES (?, ?, ?, ?)
+        ''', (doc_id, chunk, i, json.dumps({"title": title})))
+    
+    conn.commit()
+    return len(chunks)
+
+# 简单全文检索
+def search_chunks(conn, query: str, top_k: int = 5):
+    """简单的关键词检索"""
+    cursor = conn.execute('''
+        SELECT id, doc_id, content, metadata
+        FROM chunks
+        WHERE content LIKE ?
+        ORDER BY length(content)
+        LIMIT ?
+    ''', (f'%{query}%', top_k))
+    
+    return [
+        {"id": row[0], "doc_id": row[1], "content": row[2], "metadata": json.loads(row[3])}
+        for row in cursor.fetchall()
+    ]
+
+# RAG 查询
+async def rag_query(question: str, conn):
+    # 1. 检索相关 chunks
+    chunks = search_chunks(conn, question, top_k=3)
+    
+    if not chunks:
+        return "抱歉，没有找到与您问题相关的文档。"
+    
+    # 2. 构建上下文
+    context = "\n\n".join([
+        f"【文档 {i+1}】\n{c['content']}"
+        for i, c in enumerate(chunks)
+    ])
+    
+    # 3. 调用 LLM（简化示例）
+    # 在实际应用中，这里应该调用 OpenAI / Claude API
+    response = f"基于以下上下文回答：\n\n{context}\n\n问题：{question}"
+    
+    return response, chunks
+```
 
 ---
 
-## 与其他数据库对比
+## 选型建议
 
-### SQLite vs PostgreSQL
+### 何时选择 SQLite
 
-| 特性 | SQLite | PostgreSQL |
-|------|--------|------------|
-| **类型** | 嵌入式 | 服务器 |
-| **并发** | 文件锁 | 多连接 |
-| **性能** | 单机优秀 | 高并发优秀 |
-| **容量** | TB 级 | 无限制 |
-| **功能** | 基础 + 扩展 | 完整 |
-| **部署** | 简单 | 复杂 |
+| 场景 | 推荐程度 | 说明 |
+|------|---------|------|
+| 移动应用 | ★★★★★ | iOS/Android 原生支持 |
+| 桌面软件 | ★★★★★ | 单文件，零配置 |
+| 本地开发 | ★★★★★ | 秒级启动 |
+| AI 本地知识库 | ★★★★★ | 单文件管理 |
+| 边缘计算/IoT | ★★★★★ | 零依赖 |
+| 小型网站（< 1万日活） | ★★★★☆ | 成本最低 |
+| Serverless 函数 | ★★★★☆ | 冷启动快 |
+| 高并发网站 | ★☆☆☆☆ | 不推荐 |
+| 多租户 SaaS | ★★☆☆☆ | 隔离性较弱 |
 
-### SQLite vs MySQL
+### 何时选择其他方案
 
-| 特性 | SQLite | MySQL |
-|------|--------|-------|
-| **类型** | 嵌入式 | 服务器 |
-| **并发** | 有限 | 高 |
-| **性能** | 小数据优秀 | 大数据优秀 |
-| **可靠性** | 单文件 | 复制/集群 |
-| **场景** | 嵌入式/移动 | Web 应用 |
-
-### SQLite vs MongoDB
-
-| 特性 | SQLite | MongoDB |
-|------|--------|---------|
-| **类型** | 关系型 | 文档型 |
-| **存储** | 单文件 | 多文件 |
-| **查询** | SQL | MQL |
-| **扩展性** | 有限 | 水平扩展 |
-| **JSON** | 有限支持 | 原生支持 |
+- **需要远程多进程写入** → PostgreSQL
+- **需要 TB 级数据分析** → ClickHouse / DuckDB
+- **需要 GIS 功能** → PostgreSQL + PostGIS
+- **需要水平扩展** → Turso / CockroachDB
+- **微服务架构** → PostgreSQL / MySQL
 
 ---
 
-## SQLite 高级特性
+> [!SUCCESS]
+> SQLite 是嵌入式数据库的工业标准，在 2026 年的今天已经有了远超传统观念的进化：从 WAL 模式带来的并发提升、到 Turso 带来的分布式能力、到 AI 本地知识库的新场景。掌握 SQLite 的 WAL 配置、FTS5 全文搜索、Drizzle ORM 集成、以及 Litestream 备份策略，就掌握了现代应用开发中轻量级数据持久化的全部精髓。
 
-### JSON 函数（SQLite 3.38+）
+---
+
+## 附录：常用资源
+
+| 资源 | 链接 |
+|------|------|
+| 官方文档 | https://www.sqlite.org/docs.html |
+| Turso 文档 | https://docs.turso.tech |
+| Litestream 文档 | https://litestream.io/docs |
+| Drizzle ORM | https://orm.drizzle.team |
+| Prisma | https://prisma.io/docs |
+| DB Browser for SQLite | https://sqlitebrowser.org |

@@ -1,972 +1,1297 @@
 ---
 title: RAG上下文优化指南
-date: 2026-04-18
+date: 2026-04-24
 tags:
-  - RAG
-  - retrieval-augmented
+  - rag
+  - retrieval
   - context-optimization
-  - reranking
-  - compression
+  - vector-search
+  - hybrid-retrieval
 categories:
   - context-engineering
   - rag-optimization
 ---
 
 > [!abstract] 摘要
-> RAG（检索增强生成）是当前LLM应用的主流架构，而上下文优化是提升RAG效果的关键。本文系统讲解RAG上下文优化的核心策略：相关性排序、冗余消除、上下文压缩、窗口内重排，以及上下文长度规划，帮助构建高效、准确的RAG系统。
+> RAG（检索增强生成）是目前最火热的LLM应用范式，但做好RAG并不简单。这篇为零基础读者讲解：RAG是什么、RAG的核心组件、如何优化检索质量、如何优化上下文组织、以及如何构建生产级RAG系统。看完全篇，你就能从零搭建一个效果不错的RAG系统了。
 
-## 关键词速览
+## 先理解：什么是RAG？
 
-| 术语 | 英文 | 说明 |
-|------|------|------|
-| RAG | Retrieval-Augmented Generation | 检索增强生成 |
-| 向量检索 | Vector Retrieval | 基于嵌入向量的检索 |
-| 重排 | Reranking | 对检索结果重新排序 |
-| 上下文压缩 | Context Compression | 压缩上下文长度 |
-| 混合检索 | Hybrid Retrieval | 多种检索方式结合 |
-| 查询扩展 | Query Expansion | 扩展查询语义 |
-| 子查询 | Sub-query | 将查询分解为子问题 |
-| HyDE | HyDE | 基于假设文档的检索 |
-| 上下文窗口 | Context Window | 模型处理上限 |
-| Token预算 | Token Budget | 可用的token数量 |
+### RAG的名字拆解
 
-## 一、RAG系统概述
+```
+RAG = Retrieval（检索） + Augmented（增强） + Generation（生成）
 
-### 1.1 RAG工作流程
+ Retrieval（检索）：
+    在大量文档中找到相关的片段
+
+ Augmented（增强）：
+    把检索结果当作"知识"给LLM
+
+ Generation（生成）：
+    LLM基于这些知识生成回答
+```
+
+### 为什么要用RAG？
+
+```
+没有RAG时：
+用户：2024年Q3财报说了什么？
+AI：我不知道，我是2023年训练的...
+     （知识过时，或者根本没有这个知识）
+
+有RAG时：
+用户：2024年Q3财报说了什么？
+  ↓
+检索：找到2024年Q3财报的PDF
+  ↓
+上下文：[PDF中的相关内容片段]
+  ↓
+AI：财报显示Q3营收同比增长30%，主要原因是...
+     （基于最新文档回答！）
+```
+
+### RAG的工作流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        RAG系统架构                               │
+│                        RAG完整流程                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  用户查询 ──► 查询处理 ──► 检索 ──► 重排 ──► 上下文构建 ──► LLM   │
-│                              │      │              │             │
-│                              │      │              │             │
-│                         知识库索引   过滤/压缩      格式优化      │
-│                                                                 │
+│                                                                  │
+│  1️⃣ 文档处理阶段                                                │
+│  文档 → 分割 → 向量化 → 存入向量数据库                              │
+│                                                                  │
+│  2️⃣ 查询阶段                                                     │
+│  用户问题 → 向量化 → 相似度搜索 → 召回相关文档                       │
+│                                                                  │
+│  3️⃣ 生成阶段                                                     │
+│  用户问题 + 召回文档 → LLM → 生成回答                              │
+│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 RAG中的上下文挑战
+---
 
-RAG系统面临的核心上下文问题：
+## 一、RAG的核心组件
 
-1. **检索质量**：检索到的文档可能与查询不相关
-2. **信息冗余**：多个检索结果可能包含重复信息
-3. **长度限制**：上下文窗口有限，需要取舍
-4. **噪声干扰**：无关内容可能影响生成质量
-5. **位置偏差**：中间位置信息容易被忽略
+### 组件一览
 
-## 二、上下文相关性排序
+| 组件 | 功能 | 常见技术 |
+|------|------|---------|
+| 文档加载器 | 读取各种格式的文档 | PDF解析、网页爬虫、CSV解析 |
+| 文本分割器 | 把大文档切成小片段 | 固定长度、语义分割、递归字符分割 |
+| 向量化模型 | 把文本变成向量 | OpenAI Embedding、BGE、M3E |
+| 向量数据库 | 存储和搜索向量 | Milvus、Pinecone、Chroma |
+| 重排序模型 | 对检索结果排序 | BGE-Reranker、Cohere |
+| LLM | 生成最终回答 | GPT-4、Claude、通义千问 |
 
-### 2.1 相关性评估方法
+### 最小RAG实现
 
 ```python
-from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Dict, Optional
 import numpy as np
 
-@dataclass
-class RetrievedChunk:
-    """检索到的文档块"""
-    chunk_id: str
-    content: str
-    score: float  # 检索阶段的相关性分数
-    source: str
-    metadata: Dict
-    
-    def __repr__(self):
-        return f"Chunk(id={self.chunk_id}, score={self.score:.3f})"
+class SimpleRAG:
+    """
+    最简单的RAG实现
+    包含完整的检索和生成流程
+    """
 
-class RelevanceScorer:
-    """相关性评分器"""
-    
-    def __init__(self, embedding_model=None, reranker=None):
-        self.embedding_model = embedding_model
-        self.reranker = reranker
-    
-    def semantic_score(self, query: str, document: str) -> float:
-        """语义相关性分数"""
-        # 使用embedding模型计算余弦相似度
-        query_emb = self.embedding_model.encode(query)
-        doc_emb = self.embedding_model.encode(document)
-        return self.cosine_similarity(query_emb, doc_emb)
-    
-    def keyword_score(self, query: str, document: str) -> float:
-        """关键词匹配分数"""
-        query_terms = set(query.lower().split())
-        doc_terms = set(document.lower().split())
-        
-        if not query_terms:
-            return 0.0
-        
-        # Jaccard相似度
-        intersection = query_terms & doc_terms
-        return len(intersection) / len(query_terms)
-    
-    def combined_score(
+    def __init__(
         self,
-        query: str,
-        document: str,
-        weights: Dict[str, float] = None
-    ) -> float:
-        """综合相关性分数"""
-        if weights is None:
-            weights = {'semantic': 0.7, 'keyword': 0.3}
-        
-        semantic = self.semantic_score(query, document)
-        keyword = self.keyword_score(query, document)
-        
-        return (
-            weights.get('semantic', 0.5) * semantic +
-            weights.get('keyword', 0.5) * keyword
+        embedding_model,
+        vector_store,
+        llm_client
+    ):
+        self.embedding = embedding_model
+        self.vector_db = vector_store
+        self.llm = llm_client
+
+    def index_documents(self, documents: List[Dict]):
+        """
+        索引文档
+
+        Args:
+            documents: [{'text': str, 'metadata': dict}]
+        """
+        for doc in documents:
+            # 1. 向量化
+            vector = self.embedding.embed(doc['text'])
+
+            # 2. 存入向量数据库
+            self.vector_db.add(
+                id=doc.get('id', str(hash(doc['text']))),
+                vector=vector,
+                text=doc['text'],
+                metadata=doc.get('metadata', {})
+            )
+
+    def retrieve(self, query: str, top_k: int = 5) -> List[Dict]:
+        """
+        检索相关文档
+
+        Args:
+            query: 用户问题
+            top_k: 返回数量
+        """
+        # 1. 把问题向量化
+        query_vector = self.embedding.embed(query)
+
+        # 2. 搜索相似文档
+        results = self.vector_db.search(
+            vector=query_vector,
+            top_k=top_k
         )
-    
-    @staticmethod
-    def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-        dot = np.dot(a, b)
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        return dot / (norm_a * norm_b + 1e-8)
+
+        return results
+
+    def generate(self, query: str, context_docs: List[Dict]) -> str:
+        """
+        生成回答
+
+        Args:
+            query: 用户问题
+            context_docs: 检索到的文档
+        """
+        # 构建上下文
+        context = '\n\n'.join([doc['text'] for doc in context_docs])
+
+        # 构建提示词
+        prompt = f"""基于以下文档内容回答问题。如果文档中没有答案，说明不知道。
+
+文档内容：
+{context}
+
+问题：{query}
+
+回答要求：
+1. 基于文档内容回答
+2. 如果有多个文档，综合它们的答案
+3. 引用相关原文
+
+回答："""
+
+        # 生成回答
+        return self.llm.generate(prompt)
+
+    def query(self, question: str, top_k: int = 5) -> str:
+        """
+        完整的RAG查询
+        """
+        # 1. 检索
+        docs = self.retrieve(question, top_k)
+
+        if not docs:
+            return "抱歉，没有找到相关的文档。"
+
+        # 2. 生成
+        answer = self.generate(question, docs)
+
+        return answer
+
+
+# 使用示例
+def demo_simple_rag():
+    """演示简单RAG"""
+    rag = SimpleRAG(
+        embedding_model=embedding_model,
+        vector_store=vector_store,
+        llm_client=llm
+    )
+
+    # 索引文档
+    documents = [
+        {
+            'text': 'Python是一种高级编程语言，由Guido van Rossum于1991年创建。'
+                    '它以简洁易读的语法著称，广泛应用于Web开发、数据科学、AI等领域。',
+            'metadata': {'source': 'python_intro.txt'}
+        },
+        {
+            'text': '机器学习是AI的一个分支，通过算法让计算机从数据中学习。'
+                    '主要类型包括：监督学习、无监督学习、强化学习。',
+            'metadata': {'source': 'ml_intro.txt'}
+        },
+        {
+            'text': '深度学习是机器学习的子集，使用神经网络处理复杂问题。'
+                    '常见的网络结构包括：CNN、RNN、Transformer等。',
+            'metadata': {'source': 'dl_intro.txt'}
+        }
+    ]
+
+    rag.index_documents(documents)
+
+    # 查询
+    answer = rag.query("Python是什么？")
+    print(f"回答：{answer}")
 ```
 
-### 2.2 重排策略
+---
+
+## 二、文档处理与分割优化
+
+### 为什么分割很重要？
+
+```
+分割太大：
+10000字的文章 → 切成3块
+用户问："第三章讲了什么？"
+检索结果可能包含第一、二章，第三章可能被稀释 ❌
+
+分割太小：
+10000字的文章 → 切成100块
+用户问综合问题
+可能召回10块，每块都只有一小段，缺少上下文 ❌
+```
+
+### 分割策略
+
+```python
+class DocumentChunker:
+    """
+    文档分割器
+    支持多种分割策略
+    """
+
+    def __init__(
+        self,
+        chunk_size: int = 500,
+        overlap: int = 50,
+        split_by: str = "character"  # character | sentence | paragraph
+    ):
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+        self.split_by = split_by
+
+    def chunk_text(self, text: str) -> List[Dict]:
+        """分割文本"""
+        if self.split_by == "character":
+            return self._chunk_by_character(text)
+        elif self.split_by == "sentence":
+            return self._chunk_by_sentence(text)
+        elif self.split_by == "paragraph":
+            return self._chunk_by_paragraph(text)
+        else:
+            raise ValueError(f"Unknown split method: {self.split_by}")
+
+    def _chunk_by_character(self, text: str) -> List[Dict]:
+        """按字符数分割（简单粗暴）"""
+        chunks = []
+        start = 0
+
+        while start < len(text):
+            end = start + self.chunk_size
+            chunk_text = text[start:end]
+
+            chunks.append({
+                'text': chunk_text,
+                'start': start,
+                'end': end
+            })
+
+            # 滑动窗口：下一个块从当前位置往前一点开始
+            start = end - self.overlap
+
+        return chunks
+
+    def _chunk_by_sentence(self, text: str) -> List[Dict]:
+        """按句子分割（更智能）"""
+        import re
+
+        # 按句子分割（简单实现）
+        sentences = re.split(r'[。！？.!?]+', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        chunks = []
+        current_chunk = []
+        current_size = 0
+
+        for sent in sentences:
+            sent_size = len(sent)
+
+            if current_size + sent_size > self.chunk_size:
+                # 保存当前chunk
+                if current_chunk:
+                    chunks.append({
+                        'text': '。'.join(current_chunk) + '。',
+                        'sentences': len(current_chunk)
+                    })
+
+                # 开始新chunk（保留重叠）
+                if self.overlap > 0 and current_chunk:
+                    overlap_sents = []
+                    overlap_size = 0
+                    for s in reversed(current_chunk):
+                        if overlap_size + len(s) <= self.overlap:
+                            overlap_sents.insert(0, s)
+                            overlap_size += len(s)
+                        else:
+                            break
+                    current_chunk = overlap_sents
+                    current_size = overlap_size
+                else:
+                    current_chunk = []
+                    current_size = 0
+
+            current_chunk.append(sent)
+            current_size += sent_size
+
+        # 处理最后一个chunk
+        if current_chunk:
+            chunks.append({
+                'text': '。'.join(current_chunk) + '。',
+                'sentences': len(current_chunk)
+            })
+
+        return chunks
+
+    def _chunk_by_paragraph(self, text: str) -> List[Dict]:
+        """按段落分割（保留结构）"""
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+
+        chunks = []
+        current_chunk = []
+        current_size = 0
+
+        for para in paragraphs:
+            para_size = len(para)
+
+            if current_size + para_size > self.chunk_size:
+                if current_chunk:
+                    chunks.append({
+                        'text': '\n\n'.join(current_chunk),
+                        'paragraphs': len(current_chunk)
+                    })
+
+                current_chunk = []
+                current_size = 0
+
+            current_chunk.append(para)
+            current_size += para_size
+
+        if current_chunk:
+            chunks.append({
+                'text': '\n\n'.join(current_chunk),
+                'paragraphs': len(current_chunk)
+            })
+
+        return chunks
+
+
+class SemanticChunker:
+    """
+    语义分割器
+    按语义边界分割，保证每个块的主题一致性
+    """
+
+    def __init__(self, llm_client):
+        self.llm = llm_client
+
+    def chunk_document(self, text: str) -> List[Dict]:
+        """语义分割文档"""
+        # 1. 分析文档结构
+        structure = self._analyze_structure(text)
+
+        # 2. 按语义块分割
+        chunks = self._semantic_split(text, structure)
+
+        return chunks
+
+    def _analyze_structure(self, text: str) -> dict:
+        """分析文档结构"""
+        prompt = f"""分析以下文档的结构，识别主要部分和主题：
+
+{text[:5000]}
+
+请用JSON格式输出：
+{{
+  "sections": [
+    {{"title": "章节标题", "theme": "主题描述", "start": 0, "end": 1000}},
+    ...
+  ],
+  "main_topics": ["主题1", "主题2", ...]
+}}"""
+
+        import json
+        try:
+            result = self.llm.generate(prompt)
+            return json.loads(result)
+        except:
+            return {'sections': [], 'main_topics': []}
+
+    def _semantic_split(self, text: str, structure: dict) -> List[Dict]:
+        """按语义分割"""
+        sections = structure.get('sections', [])
+
+        if not sections:
+            # 如果没有识别出结构，使用简单分割
+            return [{'text': text, 'section': 'main'}]
+
+        chunks = []
+        for i, section in enumerate(sections):
+            chunk_text = text[section['start']:section['end']]
+            chunks.append({
+                'text': chunk_text,
+                'section_title': section.get('title', f'Section {i+1}'),
+                'theme': section.get('theme', '')
+            })
+
+        return chunks
+```
+
+### 分割参数选择
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     分割参数选择指南                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  📏 chunk_size（块大小）                                     │
+│  ├─ 200-300 tokens：适合简单问答                            │
+│  ├─ 500-800 tokens：适合一般文档                            │
+│  └─ 1000+ tokens：适合长文档，需要更多上下文                 │
+│                                                              │
+│  🔄 overlap（重叠）                                          │
+│  ├─ 0：不重叠，简单但可能丢失边界信息                        │
+│  ├─ 10-20%：常用选择                                        │
+│  └─ 50%：重叠多，边界信息保留好，但索引大                    │
+│                                                              │
+│  🎯 split_by（分割方式）                                    │
+│  ├─ character：最快，但可能截断句子                          │
+│  ├─ sentence：保留句子完整性                                │
+│  └─ paragraph：保留段落结构                                 │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 三、检索优化
+
+### 基础检索：向量相似度
+
+```python
+class VectorRetriever:
+    """
+    向量检索器
+    """
+
+    def __init__(self, vector_store, embedding_model):
+        self.vector_db = vector_store
+        self.embedding = embedding_model
+
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: dict = None
+    ) -> List[Dict]:
+        """
+        向量检索
+
+        Args:
+            query: 查询文本
+            top_k: 返回数量
+            filters: 元数据过滤条件
+        """
+        # 1. 向量化查询
+        query_vector = self.embedding.embed(query)
+
+        # 2. 搜索
+        results = self.vector_db.search(
+            vector=query_vector,
+            top_k=top_k * 2,  # 多召回一些，后面会过滤
+            filter=filters
+        )
+
+        # 3. 过滤和格式化
+        filtered = []
+        for r in results:
+            if r['score'] > 0.7:  # 相似度阈值
+                filtered.append(r)
+
+        return filtered[:top_k]
+
+
+class KeywordRetriever:
+    """
+    关键词检索器
+    基于BM25的稀疏检索
+    """
+
+    def __init__(self, documents: List[Dict]):
+        self.documents = documents
+        self.index = self._build_bm25_index()
+
+    def _build_bm25_index(self) -> dict:
+        """构建BM25索引"""
+        # 简化实现：统计词频
+        index = {}
+        for doc in self.documents:
+            words = self._tokenize(doc['text'])
+            for word in words:
+                if word not in index:
+                    index[word] = []
+                index[word].append({
+                    'doc_id': doc['id'],
+                    'tf': words.count(word)
+                })
+        return index
+
+    def _tokenize(self, text: str) -> List[str]:
+        """简单分词"""
+        import re
+        words = re.findall(r'[\w]+', text.lower())
+        return words
+
+    def retrieve(self, query: str, top_k: int = 5) -> List[Dict]:
+        """关键词检索"""
+        query_words = self._tokenize(query)
+        scores = {}
+
+        for word in query_words:
+            if word in self.index:
+                for entry in self.index[word]:
+                    doc_id = entry['doc_id']
+                    scores[doc_id] = scores.get(doc_id, 0) + entry['tf']
+
+        # 排序
+        sorted_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+        # 返回结果
+        results = []
+        for doc_id, score in sorted_docs[:top_k]:
+            doc = next((d for d in self.documents if d['id'] == doc_id), None)
+            if doc:
+                results.append({
+                    'doc': doc,
+                    'score': score,
+                    'match_words': [w for w in query_words if w in doc['text'].lower()]
+                })
+
+        return results
+```
+
+### 混合检索
+
+```python
+class HybridRetriever:
+    """
+    混合检索器
+    结合向量检索和关键词检索
+    """
+
+    def __init__(
+        self,
+        vector_store,
+        embedding_model,
+        documents: List[Dict]
+    ):
+        self.vector_retriever = VectorRetriever(vector_store, embedding_model)
+        self.keyword_retriever = KeywordRetriever(documents)
+
+        # 混合权重
+        self.vector_weight = 0.7
+        self.keyword_weight = 0.3
+
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: dict = None
+    ) -> List[Dict]:
+        """
+        混合检索
+        """
+        # 1. 向量检索
+        vector_results = self.vector_retriever.retrieve(
+            query, top_k * 2, filters
+        )
+        vector_scores = {
+            r['id']: r['score']
+            for r in vector_results
+        }
+
+        # 2. 关键词检索
+        keyword_results = self.keyword_retriever.retrieve(query, top_k * 2)
+        keyword_scores = {
+            r['doc']['id']: r['score']
+            for r in keyword_results
+        }
+
+        # 3. 合并分数
+        all_ids = set(vector_scores.keys()) | set(keyword_scores.keys())
+
+        combined_scores = {}
+        for doc_id in all_ids:
+            vec_s = vector_scores.get(doc_id, 0)
+            key_s = keyword_scores.get(doc_id, 0)
+
+            # 归一化
+            max_vec = max(vector_scores.values()) if vector_scores else 1
+            max_key = max(keyword_scores.values()) if keyword_scores else 1
+
+            combined = (
+                self.vector_weight * (vec_s / max_vec) +
+                self.keyword_weight * (key_s / max_key)
+            )
+
+            combined_scores[doc_id] = combined
+
+        # 4. 排序
+        sorted_ids = sorted(
+            combined_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        # 5. 获取完整文档
+        results = []
+        for doc_id, score in sorted_ids[:top_k]:
+            doc = next(
+                (r for r in vector_results if r['id'] == doc_id),
+                None
+            )
+            if not doc:
+                doc = next(
+                    (r['doc'] for r in keyword_results if r['doc']['id'] == doc_id),
+                    None
+                )
+            if doc:
+                doc['hybrid_score'] = score
+                results.append(doc)
+
+        return results
+```
+
+### 重排序优化
 
 ```python
 class Reranker:
-    """检索结果重排器"""
-    
-    def __init__(self, reranker_model=None):
-        self.reranker = reranker_model
-    
-    def cross_encoder_rerank(
+    """
+    重排序器
+    对检索结果进行精细排序
+    """
+
+    def __init__(self, reranker_model):
+        self.model = reranker_model
+
+    def rerank(
         self,
         query: str,
-        documents: List[str],
-        top_k: int = 10
-    ) -> List[RetrievedChunk]:
-        """使用Cross-Encoder重排"""
-        # 加载reranker模型（如BAAI/bge-reranker）
-        if self.reranker is None:
-            # 简化实现：使用相关性评分
-            scores = []
-            for doc in documents:
-                score = self._simple_score(query, doc)
-                scores.append(score)
-        else:
-            pairs = [(query, doc) for doc in documents]
-            scores = self.reranker.predict(pairs)
-        
-        # 按分数排序
-        scored_docs = sorted(
-            zip(scores, documents),
-            key=lambda x: x[0],
-            reverse=True
-        )
-        
-        # 返回top-k
-        results = []
-        for score, doc in scored_docs[:top_k]:
-            results.append(RetrievedChunk(
-                chunk_id=doc.get('id', 'unknown'),
-                content=doc['content'],
-                score=float(score),
-                source=doc.get('source', 'unknown'),
-                metadata=doc.get('metadata', {})
-            ))
-        
-        return results
-    
-    def diversity_rerank(
-        self,
-        query: str,
-        documents: List[RetrievedChunk],
-        diversity_weight: float = 0.3,
-        relevance_weight: float = 0.7
-    ) -> List[RetrievedChunk]:
+        documents: List[Dict],
+        top_k: int = 5
+    ) -> List[Dict]:
         """
-        多样性重排
-        在保持相关性的同时增加结果多样性
+        重排序
+
+        Args:
+            query: 查询
+            documents: 检索到的文档
+            top_k: 最终返回数量
         """
         if not documents:
             return []
-        
-        reranked = [documents[0]]  # 保留最高相关性
-        remaining = documents[1:]
-        
-        while remaining:
-            best_score = float('-inf')
-            best_doc = None
-            best_idx = None
-            
-            for i, doc in enumerate(remaining):
-                # 相关性分数
-                rel_score = doc.score
-                
-                # 多样性分数（与已选文档的最大相似度）
-                max_similarity = 0
-                for selected in reranked:
-                    sim = self._content_similarity(doc.content, selected.content)
-                    max_similarity = max(max_similarity, sim)
-                
-                div_score = 1 - max_similarity
-                
-                # 综合分数
-                combined = (
-                    relevance_weight * rel_score +
-                    diversity_weight * div_score
-                )
-                
-                if combined > best_score:
-                    best_score = combined
-                    best_doc = doc
-                    best_idx = i
-            
-            reranked.append(best_doc)
-            remaining.pop(best_idx)
-        
-        return reranked
-    
-    def _simple_score(self, query: str, doc: str) -> float:
-        """简化相关性评分"""
-        query_terms = set(query.lower().split())
-        doc_terms = set(doc.lower().split())
-        return len(query_terms & doc_terms) / max(len(query_terms), 1)
-    
-    def _content_similarity(self, content1: str, content2: str) -> float:
-        """内容相似度"""
-        # 简化实现：基于词重叠
-        terms1 = set(content1.lower().split())
-        terms2 = set(content2.lower().split())
-        if not terms1 or not terms2:
-            return 0
-        return len(terms1 & terms2) / len(terms1 | terms2)
-```
 
-## 三、冗余消除
+        # 调用重排序模型
+        doc_texts = [doc['text'] for doc in documents]
 
-### 3.1 冗余检测方法
+        scores = self.model.score(query, doc_texts)
 
-```python
-class RedundancyEliminator:
-    """冗余消除器"""
-    
-    def __init__(self, embedding_model=None):
-        self.embedding_model = embedding_model
-        self.similarity_threshold = 0.85  # 相似度阈值
-    
-    def detect_redundancy(
-        self,
-        chunks: List[RetrievedChunk]
-    ) -> Dict[str, List[str]]:
-        """
-        检测冗余，返回冗余组
-        返回格式：{representative_id: [redundant_ids]}
-        """
-        redundancy_groups = {}
-        processed = set()
-        
-        for i, chunk in enumerate(chunks):
-            if chunk.chunk_id in processed:
-                continue
-            
-            group = [chunk.chunk_id]
-            
-            for j, other in enumerate(chunks[i+1:], i+1):
-                if other.chunk_id in processed:
-                    continue
-                
-                similarity = self._calculate_similarity(
-                    chunk.content,
-                    other.content
-                )
-                
-                if similarity > self.similarity_threshold:
-                    group.append(other.chunk_id)
-                    processed.add(other.chunk_id)
-            
-            if len(group) > 1:
-                redundancy_groups[chunk.chunk_id] = group[1:]
-                processed.add(chunk.chunk_id)
-        
-        return redundancy_groups
-    
-    def eliminate_redundancy(
-        self,
-        chunks: List[RetrievedChunk],
-        strategy: str = "keep_longest"
-    ) -> List[RetrievedChunk]:
-        """
-        消除冗余
-        
-        strategy: 'keep_first', 'keep_longest', 'keep_most_relevant', 'merge'
-        """
-        redundancy_groups = self.detect_redundancy(chunks)
-        
-        # 收集需要删除的chunk id
-        to_remove = set()
-        for group in redundancy_groups.values():
-            to_remove.update(group)
-        
-        if strategy == "keep_first":
-            # 保留每组第一个
-            pass  # to_remove已经包含了非首个
-        
-        elif strategy == "keep_longest":
-            # 保留每组最长的
-            chunk_map = {c.chunk_id: c for c in chunks}
-            for rep_id, redundant_ids in redundancy_groups.items():
-                candidates = [rep_id] + redundant_ids
-                longest_id = max(
-                    candidates,
-                    key=lambda cid: len(chunk_map[cid].content)
-                )
-                to_remove.update(c for c in candidates if c != longest_id)
-        
-        elif strategy == "merge":
-            # 合并冗余内容
-            return self._merge_redundant_chunks(chunks, redundancy_groups)
-        
-        return [c for c in chunks if c.chunk_id not in to_remove]
-    
-    def _merge_redundant_chunks(
-        self,
-        chunks: List[RetrievedChunk],
-        redundancy_groups: Dict
-    ) -> List[RetrievedChunk]:
-        """合并冗余块"""
-        chunk_map = {c.chunk_id: c for c in chunks}
-        to_remove = set()
-        merged_chunks = []
-        
-        for rep_id, redundant_ids in redundancy_groups.items():
-            # 收集所有相关块的内容
-            all_contents = [chunk_map[rep_id].content]
-            all_metadata = [chunk_map[rep_id].metadata]
-            
-            for rid in redundant_ids:
-                all_contents.append(chunk_map[rid].content)
-                all_metadata.append(chunk_map[rid].metadata)
-                to_remove.add(rid)
-            
-            # 合并内容（去重）
-            merged_content = self._deduplicate_content(all_contents)
-            
-            merged_chunks.append(RetrievedChunk(
-                chunk_id=rep_id,
-                content=merged_content,
-                score=chunk_map[rep_id].score,
-                source="merged",
-                metadata={'merged_from': [rep_id] + redundant_ids}
-            ))
-        
-        # 添加非冗余块
-        result = [
-            c for c in chunks
-            if c.chunk_id not in to_remove and c.chunk_id not in redundancy_groups
+        # 按分数排序
+        scored_docs = [
+            (doc, score)
+            for doc, score in zip(documents, scores)
         ]
-        result.extend(merged_chunks)
-        
-        return result
-    
-    def _deduplicate_content(self, contents: List[str]) -> str:
-        """内容去重合并"""
-        lines = []
-        seen = set()
-        
-        for content in contents:
-            for line in content.split('\n'):
-                line = line.strip()
-                if line and line not in seen:
-                    seen.add(line)
-                    lines.append(line)
-        
-        return '\n'.join(lines)
-    
-    def _calculate_similarity(self, content1: str, content2: str) -> float:
-        """计算内容相似度"""
-        if self.embedding_model:
-            emb1 = self.embedding_model.encode(content1)
-            emb2 = self.embedding_model.encode(content2)
-            return self.cosine_similarity(emb1, emb2)
-        else:
-            # 基于词重叠的简单相似度
-            terms1 = set(content1.lower().split())
-            terms2 = set(content2.lower().split())
-            if not terms1 or not terms2:
-                return 0
-            return len(terms1 & terms2) / len(terms1 | terms2)
-    
-    @staticmethod
-    def cosine_similarity(a, b):
-        dot = np.dot(a, b)
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        return dot / (norm_a * norm_b + 1e-8)
-```
+        scored_docs.sort(key=lambda x: x[1], reverse=True)
 
-## 四、上下文压缩
+        # 返回top_k
+        results = []
+        for doc, score in scored_docs[:top_k]:
+            doc['rerank_score'] = score
+            results.append(doc)
 
-### 4.1 压缩策略概览
+        return results
 
-| 压缩策略 | 方法 | 优点 | 缺点 | 适用场景 |
-|---------|------|------|------|---------|
-| 规则压缩 | 删除停用词、压缩格式 | 快速、可控 | 可能丢失信息 | 格式化内容 |
-| LLM压缩 | 使用LLM生成摘要 | 智能、保留语义 | 成本高、慢 | 语义丰富内容 |
-| 选择性保留 | 只保留关键句子 | 精准 | 可能丢失上下文 | 长文档 |
-| 实体保留 | 保留实体信息 | 保持事实准确性 | 可能丢失关系 | 知识密集型 |
 
-### 4.2 规则压缩实现
+class LLMReranker:
+    """
+    基于LLM的重排序
+    使用LLM判断相关性
+    """
 
-```python
-import re
-
-class RuleBasedCompressor:
-    """基于规则的上下文压缩器"""
-    
-    def __init__(self):
-        self.stopwords = {
-            '的', '了', '是', '在', '和', '与', '等', '以及', '这', '那',
-            '一个', '我们', '你们', '他们', '可以', '能够', '需要', '应该'
-        }
-        self.template_phrases = [
-            '请注意以下内容',
-            '下面为大家介绍',
-            '接下来我们来看',
-            '综上所述',
-            '总而言之'
-        ]
-    
-    def compress(
-        self,
-        text: str,
-        target_ratio: float = 0.7,
-        preserve_structure: bool = True
-    ) -> str:
-        """
-        压缩文本
-        
-        Args:
-            text: 原始文本
-            target_ratio: 目标压缩比 (0-1)
-            preserve_structure: 是否保留结构
-        """
-        # 1. 移除HTML标签
-        text = self._remove_html_tags(text)
-        
-        # 2. 规范化空白
-        text = self._normalize_whitespace(text)
-        
-        # 3. 移除模板短语
-        text = self._remove_template_phrases(text)
-        
-        # 4. 压缩句子
-        if preserve_structure:
-            text = self._compress_sentences(text, target_ratio)
-        else:
-            text = self._compress_aggressive(text, target_ratio)
-        
-        return text
-    
-    def _remove_html_tags(self, text: str) -> str:
-        """移除HTML标签"""
-        text = re.sub(r'<[^>]+>', '', text)
-        text = re.sub(r'&[a-z]+;', '', text)
-        return text
-    
-    def _normalize_whitespace(self, text: str) -> str:
-        """规范化空白字符"""
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        text = re.sub(r' {2,}', ' ', text)
-        text = re.sub(r'\t', ' ', text)
-        return text.strip()
-    
-    def _remove_template_phrases(self, text: str) -> str:
-        """移除模板性短语"""
-        for phrase in self.template_phrases:
-            text = text.replace(phrase, '')
-        return text
-    
-    def _compress_sentences(self, text: str, target_ratio: float) -> str:
-        """保留性压缩句子"""
-        sentences = re.split(r'[。！？\n]', text)
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        if not sentences:
-            return text
-        
-        # 计算每个句子的重要性
-        scored_sentences = []
-        for sent in sentences:
-            score = self._sentence_importance(sent)
-            scored_sentences.append((score, sent))
-        
-        # 按重要性排序
-        scored_sentences.sort(key=lambda x: x[0], reverse=True)
-        
-        # 选择保留的句子
-        n_keep = int(len(sentences) * target_ratio)
-        n_keep = max(n_keep, 1)  # 至少保留一个
-        
-        # 重新按原文顺序排列
-        kept = set(s for s, _ in scored_sentences[:n_keep])
-        result = [s for s in sentences if s in kept]
-        
-        return '。'.join(result) + '。' if result else text[:int(len(text) * target_ratio)]
-    
-    def _compress_aggressive(self, text: str, target_ratio: float) -> str:
-        """激进压缩"""
-        words = text.split()
-        n_keep = int(len(words) * target_ratio)
-        
-        # 过滤停用词和短词
-        filtered = [
-            w for w in words
-            if w not in self.stopwords and len(w) > 1
-        ]
-        
-        # 如果过滤后太少，回退到保留关键词
-        if len(filtered) < n_keep:
-            keywords = [w for w in words if len(w) > 3]
-            return ' '.join(keywords[:n_keep])
-        
-        return ' '.join(filtered[:n_keep])
-    
-    def _sentence_importance(self, sentence: str) -> float:
-        """评估句子重要性"""
-        score = 0.0
-        
-        # 长度分数
-        if len(sentence) > 20:
-            score += 0.3
-        
-        # 关键词分数
-        important_keywords = ['关键', '重要', '核心', '主要', '必须', '建议']
-        for kw in important_keywords:
-            if kw in sentence:
-                score += 0.2
-        
-        # 数字分数
-        if re.search(r'\d+', sentence):
-            score += 0.1
-        
-        # 位置分数（首尾句子略高）
-        if sentence.startswith(('首先', '第一', '首先', '关键')):
-            score += 0.2
-        
-        return score
-```
-
-### 4.3 LLM压缩实现
-
-```python
-class LLMCompressor:
-    """基于LLM的智能压缩器"""
-    
     def __init__(self, llm_client):
         self.llm = llm_client
-    
-    def compress_with_summary(
+
+    def rerank(
         self,
-        text: str,
-        max_length: int = 500,
-        preserve_key_points: bool = True
-    ) -> str:
-        """使用LLM生成摘要压缩"""
-        prompt = f"""请压缩以下文本，保留核心信息。
-
-要求：
-1. 保留所有关键事实和数据
-2. 保留重要观点和结论
-3. 删除重复和冗余表述
-4. 目标长度：{max_length}字以内
-5. 保持原文的语言风格
-
-原文：
-{text}
-
-压缩后的版本："""
-        
-        return self.llm.generate(prompt).strip()
-    
-    def compress_selective(
-        self,
-        text: str,
         query: str,
-        max_sentences: int = 5
-    ) -> str:
-        """
-        选择性保留：只保留与查询最相关的句子
-        
-        解决Lost in Middle问题的策略之一
-        """
-        prompt = f"""从以下文本中，选择与用户查询最相关的句子。
+        documents: List[Dict],
+        top_k: int = 5
+    ) -> List[Dict]:
+        """LLM重排序"""
+        if not documents:
+            return []
 
-用户查询：{query}
+        # 构建评分提示
+        doc_summaries = []
+        for i, doc in enumerate(documents):
+            doc_summaries.append(f"[文档{i+1}]\n{doc['text'][:500]}...")
 
-文本内容：
-{text}
+        prompt = f"""评估以下文档与查询的相关性，输出JSON格式的评分：
 
-要求：
-1. 选择最多{max_sentences}个最相关的句子
-2. 保留原文中的所有关键信息
-3. 按相关性从高到低排序
-4. 如果原文顺序重要，保持原有顺序
+查询：{query}
 
-选中的句子（直接输出，不要额外解释）："""
-        
-        return self.llm.generate(prompt).strip()
-    
-    def compress_entity_preserving(
-        self,
-        text: str,
-        entity_types: List[str] = None
-    ) -> str:
-        """
-        实体保留压缩：优先保留实体信息
-        
-        entity_types: ['person', 'organization', 'location', 'date', 'number']
-        """
-        if entity_types is None:
-            entity_types = ['person', 'organization', 'date', 'number']
-        
-        prompt = f"""压缩以下文本，但必须保留所有实体信息。
+文档：
+{chr(10).join(doc_summaries)}
 
-必须保留的实体类型：{', '.join(entity_types)}
+评分要求：
+- 输出JSON数组，每个元素为{{"doc_id": 序号, "score": 0-10, "reason": "理由"}}
+- 分数越高表示越相关
 
-要求：
-1. 保留所有提及的人名、组织名、地点、日期、数字
-2. 删除冗余的描述和修饰
-3. 保持事实的准确性
-4. 压缩后的内容应该仍然通顺可读
+JSON输出："""
 
-原文：
-{text}
+        import json
+        try:
+            result = self.llm.generate(prompt)
+            ratings = json.loads(result)
 
-压缩后的版本："""
-        
-        return self.llm.generate(prompt).strip()
+            # 应用评分
+            for rating in ratings:
+                doc_id = rating['doc_id'] - 1
+                if 0 <= doc_id < len(documents):
+                    documents[doc_id]['llm_score'] = rating['score'] / 10.0
+                    documents[doc_id]['llm_reason'] = rating['reason']
+
+            # 按LLM评分排序
+            documents.sort(key=lambda x: x.get('llm_score', 0), reverse=True)
+
+        except Exception as e:
+            print(f"LLM rerank failed: {e}")
+
+        return documents[:top_k]
 ```
 
-## 五、上下文窗口内重排
+---
 
-### 5.1 重排策略
+## 四、上下文优化
+
+### 上下文构建策略
 
 ```python
-class ContextReranker:
-    """上下文窗口内重排器"""
-    
-    def __init__(self):
-        self.head_size_ratio = 0.4  # 开头保留比例
-        self.tail_size_ratio = 0.4  # 结尾保留比例
-    
-    def rerank_for_llm(
+class ContextBuilder:
+    """
+    上下文构建器
+    将检索结果组织成适合LLM的格式
+    """
+
+    def __init__(self, llm_client):
+        self.llm = llm_client
+
+    def build_context(
         self,
-        chunks: List[RetrievedChunk],
         query: str,
-        max_tokens: int = 30000
+        documents: List[Dict],
+        strategy: str = "concatenate"
     ) -> str:
         """
-        为LLM重排上下文内容
-        
-        策略：将最相关的内容放在开头和结尾
+        构建上下文
+
+        Args:
+            query: 用户问题
+            documents: 检索到的文档
+            strategy: 构建策略
         """
-        # 1. 按相关性排序
-        scored_chunks = self._score_and_sort(chunks, query)
-        
-        # 2. 计算可用空间
-        total_content = '\n\n'.join([c.content for c in scored_chunks])
-        if len(total_content) <= max_tokens:
-            return self._build_context(scored_chunks)
-        
-        # 3. 优先保留开头和结尾
-        return self._prioritize_ends(scored_chunks, max_tokens)
-    
-    def _score_and_sort(
-        self,
-        chunks: List[RetrievedChunk],
-        query: str
-    ) -> List[RetrievedChunk]:
-        """计算相关性分数并排序"""
-        # 根据原始分数和查询相关性重新评分
-        scored = []
-        for chunk in chunks:
-            # 简单实现：直接使用原始分数
-            scored.append(chunk)
-        
-        return sorted(scored, key=lambda c: c.score, reverse=True)
-    
-    def _prioritize_ends(
-        self,
-        chunks: List[RetrievedChunk],
-        max_tokens: int
-    ) -> str:
-        """
-        优先保留开头和结尾的内容
-        
-        利用LLM对首尾位置注意力更强的特性
-        """
-        if not chunks:
-            return ""
-        
-        result_parts = []
-        current_tokens = 0
-        
-        # 1. 头部：按相关性顺序添加
-        head_limit = int(max_tokens * self.head_size_ratio)
-        for chunk in chunks:
-            chunk_tokens = len(chunk.content) // 4  # 粗略估算
-            if current_tokens + chunk_tokens > head_limit:
-                break
-            result_parts.append(chunk.content)
-            current_tokens += chunk_tokens
-        
-        # 2. 中间：选择性添加最重要的
-        middle_chunks = chunks[len(result_parts):-len(result_parts)] if len(result_parts) < len(chunks) else []
-        middle_limit = int(max_tokens * 0.2)
-        for chunk in middle_chunks:
-            chunk_tokens = len(chunk.content) // 4
-            if current_tokens + chunk_tokens > max_tokens - head_limit:
-                break
-            result_parts.append(f"[相关内容]\n{chunk.content}")
-            current_tokens += chunk_tokens
-        
-        # 3. 尾部：添加高相关性的
-        tail_limit = int(max_tokens * self.tail_size_ratio)
-        remaining = max_tokens - current_tokens - tail_limit
-        
-        # 从后往前添加
-        for chunk in reversed(chunks):
-            if chunk in result_parts:
-                continue
-            chunk_tokens = len(chunk.content) // 4
-            if chunk_tokens > remaining:
-                continue
-            result_parts.insert(0, chunk.content)
-            remaining -= chunk_tokens
-            current_tokens += chunk_tokens
-            if remaining <= 0:
-                break
-        
-        return '\n\n---\n\n'.join(result_parts)
-    
-    def _build_context(self, chunks: List[RetrievedChunk]) -> str:
-        """构建上下文字符串"""
+        if strategy == "concatenate":
+            return self._concatenate_context(documents)
+        elif strategy == "summarize":
+            return self._summarize_context(query, documents)
+        elif strategy == "tree":
+            return self._tree_context(query, documents)
+        elif strategy == "window":
+            return self._window_context(documents)
+        else:
+            raise ValueError(f"Unknown strategy: {strategy}")
+
+    def _concatenate_context(self, documents: List[Dict]) -> str:
+        """简单拼接"""
         parts = []
-        for chunk in chunks:
-            parts.append(chunk.content)
-        return '\n\n---\n\n'.join(parts)
+        for i, doc in enumerate(documents, 1):
+            parts.append(f"【文档{i}】\n{doc['text']}\n")
+        return '\n'.join(parts)
+
+    def _summarize_context(self, query: str, documents: List[Dict]) -> str:
+        """摘要式上下文"""
+        # 先让LLM总结每个文档的相关部分
+        summaries = []
+
+        for doc in documents:
+            prompt = f"""基于以下文档，提取与问题相关的内容：
+
+问题：{query}
+
+文档：
+{doc['text']}
+
+如果文档与问题相关，提取相关部分并简要总结。
+如果不相关，输出"不相关"。"""
+
+            summary = self.llm.generate(prompt)
+            if "不相关" not in summary:
+                summaries.append(summary)
+
+        if not summaries:
+            return "没有找到相关文档。"
+
+        return '\n\n'.join(summaries)
+
+    def _tree_context(self, query: str, documents: List[Dict]) -> str:
+        """树状上下文"""
+        # 按主题分组
+        prompt = f"""将以下文档按主题分组，输出JSON格式：
+
+文档：
+{chr(10).join([f"[文档{i+1}] {d['text'][:300]}..." for i, d in enumerate(documents)])}
+
+输出格式：
+{{
+  "groups": [
+    {{"topic": "主题名", "doc_ids": [1, 3], "summary": "该主题的总结"}},
+    ...
+  ]
+}}"""
+
+        import json
+        try:
+            result = self.llm.generate(prompt)
+            groups = json.loads(result)['groups']
+
+            # 构建树状上下文
+            output = ["# 相关文档\n"]
+
+            for group in groups:
+                output.append(f"## {group['topic']}")
+                output.append(f"总结：{group['summary']}")
+                output.append("\n相关文档：")
+                for doc_id in group['doc_ids']:
+                    doc = documents[doc_id - 1]
+                    output.append(f"\n{doc['text']}")
+                output.append("")
+
+            return '\n'.join(output)
+
+        except:
+            return self._concatenate_context(documents)
+
+    def _window_context(self, documents: List[Dict]) -> str:
+        """窗口式上下文"""
+        # 保留文档的局部上下文
+        output = []
+
+        for i, doc in enumerate(documents, 1):
+            # 添加前后文
+            context = doc.get('context', {})
+            before = context.get('before', '')
+            after = context.get('after', '')
+
+            output.append(f"【文档{i}】")
+            if before:
+                output.append(f"前文：{before}")
+            output.append(f"正文：{doc['text']}")
+            if after:
+                output.append(f"后文：{after}")
+            output.append("")
+
+        return '\n'.join(output)
 ```
 
-## 六、上下文长度规划
-
-### 6.1 长度规划策略
+### 上下文压缩与扩展
 
 ```python
-class ContextLengthPlanner:
-    """上下文长度规划器"""
-    
-    def __init__(
+class ContextOptimizer:
+    """
+    上下文优化器
+    """
+
+    def __init__(self, llm_client, max_tokens: int = 8000):
+        self.llm = llm_client
+        self.max_tokens = max_tokens
+
+    def optimize_context(
         self,
-        model_context_limit: int = 200000,
-        reserve_for_output: int = 4000,
-        reserve_for_instructions: int = 1000
-    ):
-        self.model_context_limit = model_context_limit
-        self.reserve_for_output = reserve_for_output
-        self.reserve_for_instructions = reserve_for_instructions
-    
-    def calculate_available_context(
-        self,
-        system_prompt: str = "",
-        few_shot_examples: List[str] = None,
-        user_query: str = ""
-    ) -> int:
-        """计算可用于检索上下文的token数"""
-        # 系统提示token
-        system_tokens = self._estimate_tokens(system_prompt)
-        
-        # Few-shot示例token
-        few_shot_tokens = 0
-        if few_shot_examples:
-            for example in few_shot_examples:
-                few_shot_tokens += self._estimate_tokens(example)
-        
-        # 用户查询token
-        query_tokens = self._estimate_tokens(user_query)
-        
-        # 可用空间
-        available = (
-            self.model_context_limit
-            - system_tokens
-            - few_shot_tokens
-            - query_tokens
-            - self.reserve_for_output
-            - self.reserve_for_instructions
-        )
-        
-        return max(available, 0)
-    
-    def plan_retrieval(
-        self,
-        available_tokens: int,
-        avg_chunk_size: int = 500,
-        redundancy_buffer: float = 1.2
-    ) -> Dict:
+        query: str,
+        documents: List[Dict]
+    ) -> str:
         """
-        规划检索策略
-        
-        Returns:
-            chunk_count: 需要检索的块数
-            top_k: 返回的块数
-            compression_ratio: 压缩比
+        优化上下文
+
+        策略：
+        1. 如果总长度合适，直接返回
+        2. 如果太长，压缩
+        3. 如果太短，扩展
         """
-        # 考虑冗余缓冲
-        effective_tokens = int(available_tokens / redundancy_buffer)
-        
-        # 计算可以容纳的块数
-        chunk_count = effective_tokens // avg_chunk_size
-        
-        # 返回更多块用于后续过滤
-        top_k = min(int(chunk_count * 1.5), 50)
-        
-        # 压缩比
-        compression_ratio = available_tokens / (chunk_count * avg_chunk_size)
-        
-        return {
-            'chunk_count': chunk_count,
-            'top_k': top_k,
-            'compression_ratio': compression_ratio,
-            'effective_tokens': effective_tokens
-        }
-    
-    def estimate_compression_needed(
+        # 估算总长度
+        total_tokens = sum(self._estimate_tokens(d['text']) for d in documents)
+
+        if total_tokens <= self.max_tokens:
+            # 长度合适
+            return self._build_context(documents)
+
+        elif total_tokens <= self.max_tokens * 2:
+            # 轻度压缩
+            return self._compress_context(query, documents)
+
+        else:
+            # 重度压缩
+            return self._heavy_compress(query, documents)
+
+    def _build_context(self, documents: List[Dict]) -> str:
+        """构建普通上下文"""
+        output = []
+        for i, doc in enumerate(documents, 1):
+            output.append(f"[文档{i}]\n{doc['text']}")
+        return '\n\n'.join(output)
+
+    def _compress_context(
         self,
-        retrieved_content_tokens: int,
-        available_tokens: int
-    ) -> float:
-        """估算需要的压缩比"""
-        if retrieved_content_tokens <= available_tokens:
-            return 1.0  # 不需要压缩
-        
-        return available_tokens / retrieved_content_tokens
-    
+        query: str,
+        documents: List[Dict]
+    ) -> str:
+        """轻度压缩"""
+        prompt = f"""压缩以下文档内容，保留与问题相关的部分：
+
+问题：{query}
+
+文档：
+{self._build_context(documents)}
+
+压缩要求：
+1. 删除与问题无关的内容
+2. 保留关键信息和数据
+3. 保留引用来源
+4. 压缩后总长度约为原来的一半
+
+压缩后："""
+
+        return self.llm.generate(prompt)
+
+    def _heavy_compress(
+        self,
+        query: str,
+        documents: List[Dict]
+    ) -> str:
+        """重度压缩"""
+        prompt = f"""从以下文档中提取回答问题所需的关键信息：
+
+问题：{query}
+
+文档：
+{self._build_context(documents)}
+
+提取要求：
+1. 提取直接回答问题的内容
+2. 保留原文的引用
+3. 如果某个文档完全不相关，忽略它
+4. 总长度控制在{self.max_tokens} tokens以内
+
+提取结果："""
+
+        return self.llm.generate(prompt)
+
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """粗略估算token数"""
-        if not text:
-            return 0
-        # 中文约0.5token/字，英文约0.25token/词
         chinese = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
         english = len(text.split()) - chinese
-        return int(chinese * 0.5 + english * 0.25 + len(text) * 0.1)
+        return int(chinese * 0.5 + english * 0.25)
 ```
 
-### 6.2 完整RAG上下文优化流程
+---
+
+## 五、生产级RAG系统
+
+### 完整实现
 
 ```python
-class RAGContextOptimizer:
-    """RAG上下文优化器 - 综合所有策略"""
-    
+class ProductionRAG:
+    """
+    生产级RAG系统
+    """
+
     def __init__(
         self,
-        embedding_model=None,
-        reranker=None,
-        llm_client=None
+        embedding_model,
+        vector_store,
+        llm_client,
+        reranker_model=None
     ):
-        self.relevance_scorer = RelevanceScorer(embedding_model)
-        self.reranker = Reranker(reranker)
-        self.redundancy_eliminator = RedundancyEliminator(embedding_model)
-        self.rule_compressor = RuleBasedCompressor()
-        self.llm_compressor = LLMCompressor(llm_client) if llm_client else None
-        self.context_reranker = ContextReranker()
-        self.length_planner = ContextLengthPlanner()
-    
-    def optimize(
+        self.embedding = embedding_model
+        self.vector_db = vector_store
+        self.llm = llm_client
+        self.reranker = reranker_model
+
+        # 组件
+        self.chunker = DocumentChunker(chunk_size=500, overlap=50)
+        self.hybrid_retriever = None
+        self.context_builder = ContextBuilder(llm_client)
+        self.context_optimizer = ContextOptimizer(llm_client)
+
+        # 文档存储
+        self.documents = {}
+
+    def add_documents(
         self,
-        query: str,
-        retrieved_chunks: List[RetrievedChunk],
-        available_tokens: int = None,
-        strategy: str = "auto"
+        documents: List[Dict],
+        collection_name: str = "default"
+    ):
+        """
+        添加文档
+
+        Args:
+            documents: [{'text': str, 'metadata': dict}]
+            collection_name: 集合名称
+        """
+        # 分割文档
+        chunks = []
+        for doc in documents:
+            doc_chunks = self.chunker.chunk_text(doc['text'])
+            for i, chunk in enumerate(doc_chunks):
+                chunk['metadata'] = doc.get('metadata', {})
+                chunk['metadata']['chunk_id'] = i
+                chunk['metadata']['collection'] = collection_name
+                chunks.append(chunk)
+
+        # 向量化并存储
+        for chunk in chunks:
+            vector = self.embedding.embed(chunk['text'])
+
+            chunk_id = f"{collection_name}_{hash(chunk['text'])}"
+
+            self.vector_db.add(
+                id=chunk_id,
+                vector=vector,
+                text=chunk['text'],
+                metadata=chunk['metadata']
+            )
+
+            self.documents[chunk_id] = chunk
+
+    def query(
+        self,
+        question: str,
+        collection: str = None,
+        top_k: int = 5,
+        use_rerank: bool = True,
+        use_hybrid: bool = False
+    ) -> Dict:
+        """
+        查询
+
+        Args:
+            question: 问题
+            collection: 指定集合
+            top_k: 检索数量
+            use_rerank: 是否重排
+            use_hybrid: 是否混合检索
+
+        Returns:
+            {'answer': str, 'sources': List[dict], 'metadata': dict}
+        """
+        # 1. 检索
+        filters = {'collection': collection} if collection else None
+
+        if use_hybrid and self.hybrid_retriever:
+            results = self.hybrid_retriever.retrieve(question, top_k * 2, filters)
+        else:
+            from vector_retriever import VectorRetriever
+            retriever = VectorRetriever(self.vector_db, self.embedding)
+            results = retriever.retrieve(question, top_k * 2, filters)
+
+        # 2. 重排序
+        if use_rerank and self.reranker:
+            results = self.reranker.rerank(question, results, top_k)
+
+        # 3. 上下文优化
+        context = self.context_optimizer.optimize_context(question, results)
+
+        # 4. 生成
+        answer = self._generate_answer(question, context, results)
+
+        return {
+            'answer': answer,
+            'sources': results,
+            'metadata': {
+                'num_sources': len(results),
+                'total_tokens': self.context_optimizer._estimate_tokens(context)
+            }
+        }
+
+    def _generate_answer(
+        self,
+        question: str,
+        context: str,
+        sources: List[Dict]
     ) -> str:
-        """
-        完整的RAG上下文优化流程
-        
-        strategy: 'auto', 'high_quality', 'high_recall', 'balanced'
-        """
-        if not retrieved_chunks:
-            return ""
-        
-        # 1. 重排（如果可用）
-        if strategy in ['auto', 'high_quality']:
-            reranked = self.reranker.cross_encoder_rerank(
-                query,
-                [{'id': c.chunk_id, 'content': c.content, 'source': c.source}
-                 for c in retrieved_chunks]
-            )
-            retrieved_chunks = reranked
-        
-        # 2. 消除冗余
-        if strategy in ['auto', 'balanced']:
-            deduplicated = self.redundancy_eliminator.eliminate_redundancy(
-                retrieved_chunks,
-                strategy='merge'
-            )
-            retrieved_chunks = deduplicated
-        
-        # 3. 长度检查和压缩
-        total_tokens = sum(self.length_planner._estimate_tokens(c.content) 
-                          for c in retrieved_chunks)
-        
-        if available_tokens and total_tokens > available_tokens:
-            compression_ratio = available_tokens / total_tokens
-            
-            if compression_ratio < 0.5:
-                # 需要较大压缩，使用LLM
-                if self.llm_compressor:
-                    compressed = self.llm_compressor.compress_selective(
-                        '\n\n'.join([c.content for c in retrieved_chunks]),
-                        query,
-                        max_sentences=int(len(retrieved_chunks) * compression_ratio)
-                    )
-                    return compressed
-            
-            # 轻度压缩，使用规则
-            compressed_chunks = []
-            for chunk in retrieved_chunks:
-                compressed = self.rule_compressor.compress(
-                    chunk.content,
-                    target_ratio=compression_ratio
-                )
-                compressed_chunks.append(RetrievedChunk(
-                    chunk_id=chunk.chunk_id,
-                    content=compressed,
-                    score=chunk.score,
-                    source=chunk.source,
-                    metadata=chunk.metadata
-                ))
-            retrieved_chunks = compressed_chunks
-        
-        # 4. 最终重排（首尾优先）
-        final_context = self.context_reranker.rerank_for_llm(
-            retrieved_chunks,
-            query,
-            max_tokens=available_tokens or 30000
-        )
-        
-        return final_context
+        """生成回答"""
+        prompt = f"""基于以下文档内容回答问题。如果文档中没有答案，直接说明不知道，不要编造。
+
+【文档】
+{context}
+【文档结束】
+
+问题：{question}
+
+回答要求：
+1. 如果有答案，基于文档内容给出完整回答
+2. 适当引用文档内容（用[文档X]标注来源）
+3. 如果文档中没有答案，说"根据提供的文档，无法回答这个问题"
+4. 回答要清晰、有条理
+
+回答："""
+
+        return self.llm.generate(prompt)
+
+
+# 使用示例
+def demo_production_rag():
+    """演示生产级RAG"""
+    # 初始化（需要替换为实际配置）
+    # rag = ProductionRAG(
+    #     embedding_model=embedding_model,
+    #     vector_store=vector_store,
+    #     llm_client=llm,
+    #     reranker_model=reranker
+    # )
+
+    # 添加文档
+    documents = [
+        {
+            'text': '''
+            # Python入门教程
+
+            ## 第一章：基础语法
+
+            Python是一种高级编程语言，由Guido van Rossum于1991年创建。
+            Python的语法简洁优雅，适合初学者学习。
+
+            ### 变量和数据类型
+
+            Python中可以使用变量来存储数据：
+
+            ```python
+            name = "小明"
+            age = 25
+            is_student = True
+            ```
+
+            ### 基本运算
+
+            Python支持基本的数学运算：
+
+            ```python
+            a = 10
+            b = 3
+            print(a + b)  # 加法：13
+            print(a - b)  # 减法：7
+            print(a * b)  # 乘法：30
+            print(a / b)  # 除法：3.33...
+            ```
+            ''',
+            'metadata': {'source': 'python_tutorial.md', 'type': 'tutorial'}
+        },
+        {
+            'text': '''
+            # JavaScript基础
+
+            JavaScript是一种用于Web开发的脚本语言。
+            它可以控制网页的行为，实现交互效果。
+
+            ## 变量声明
+
+            JavaScript有三种声明变量的方式：
+
+            ```javascript
+            var name = "小明";      // 旧方式
+            let age = 25;          // 现代方式
+            const PI = 3.14159;     // 常量
+            ```
+
+            ## 基本语法
+
+            JavaScript的语法与C语言类似：
+
+            ```javascript
+            function greet(name) {
+                return "Hello, " + name + "!";
+            }
+
+            console.log(greet("World"));
+            ```
+            ''',
+            'metadata': {'source': 'js_tutorial.md', 'type': 'tutorial'}
+        }
+    ]
+
+    # rag.add_documents(documents)
+
+    # 查询
+    # result = rag.query("Python中如何声明变量？")
+    # print(f"回答：{result['answer']}")
+    # print(f"来源：{len(result['sources'])}个文档")
 ```
 
-## 七、相关主题
+---
 
-- [[上下文窗口深度解析]]
-- [[滑动窗口技术]]
-- [[上下文压缩技术]]
-- [[对话历史管理]]
-- [[Context Caching详解]]
+## 六、RAG优化技巧总结
 
-## 八、参考文献
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         RAG优化技巧速查                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  📄 文档处理优化                                                     │
+│  ├─ 选择合适的chunk_size（500-800常用）                              │
+│  ├─ 保留段落结构                                                     │
+│  ├─ 添加元数据（来源、日期、类型）                                   │
+│  └─ 使用语义分割（高级）                                            │
+│                                                                      │
+│  🔍 检索优化                                                        │
+│  ├─ 混合检索：向量+关键词                                           │
+│  ├─ 重排序：使用BGE-Reranker                                       │
+│  ├─ 多跳检索：先粗筛再精筛                                           │
+│  └─ 过滤器：按元数据筛选                                            │
+│                                                                      │
+│  📝 上下文优化                                                      │
+│  ├─ 压缩无关内容                                                    │
+│  ├─ 保留关键数据和引用                                              │
+│  ├─ 按主题分组（树状上下文）                                        │
+│  └─ 添加前后文窗口                                                   │
+│                                                                      │
+│  🎯 生成优化                                                        │
+│  ├─ 明确要求引用来源                                                │
+│  ├─ 要求回答在文档范围内                                            │
+│  ├─ 处理"不知道"的情况                                              │
+│  └─ Chain-of-Thought（复杂问题）                                    │
+│                                                                      │
+│  ⚠️ 常见问题                                                        │
+│  ├─ 检索不准确 → 优化embedding或chunk策略                           │
+│  ├─ 上下文太长 → 压缩或分批                                         │
+│  ├─ 幻觉问题 → 要求引用原文                                          │
+│  └─ 速度慢 → 缓存或简化流程                                         │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-1. Gao, Y., et al. (2023). Retrieval-Augmented Generation for Large Language Models: A Survey.
-2. Lewis, P., et al. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. *NeurIPS*.
-3. Ram, O., et al. (2023). In-Context Retrieval-Augmented Language Models. *TACL*.
+---
+
+## 相关主题
+
+- [[上下文窗口深度解析]] - 理解RAG的上下文限制
+- [[上下文压缩技术]] - 压缩检索结果
+- [[FewShot示例选择]] - 在RAG中使用Few-shot
+
+---
+
+## 参考文献
+
+1. Lewis, P., et al. (2020). **Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.** NeurIPS.
+2. Gao, Y., et al. (2023). **Retrieval-Augmented Generation for Large Language Models: A Survey.** arXiv.
+3. Glass, M., et al. (2022). **Naver Labs' approaches at TREC 2022.**

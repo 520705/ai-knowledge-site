@@ -2168,3 +2168,838 @@ export default defineConfig({
 - [Playwright](https://playwright.dev) - E2E 测试
 - [Rollup](https://rollupjs.org) - Vite 底层打包器
 - [esbuild](https://esbuild.github.io) - Vite 使用的编译器
+
+---
+
+## Vite 与不同框架的深度集成
+
+### Vite 在 React 生态中的地位
+
+在 React 生态中，Vite 已经成为了新建项目的首选构建工具。Create React App 由于维护问题已经停止更新，而 Vite 凭借其出色的开发体验填补了这一空白。React 官方也推荐使用 Vite 作为 React 项目的构建工具，这标志着 Vite 在 React 生态中的地位已经确立。
+
+**React + Vite 项目结构设计：**
+
+```typescript
+// vite.config.ts - React 完整配置
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [
+    react({
+      // 使用 SWC 编译器（更快）
+      parser: 'sucrase',
+      // 或者使用 Babel
+      // parser: 'babel',
+      babel: {
+        plugins: [
+          // 添加 Babel 插件
+        ],
+      },
+    }),
+  ],
+  
+  // 路径解析
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@stores': path.resolve(__dirname, './src/stores'),
+      '@api': path.resolve(__dirname, './src/api'),
+      '@types': path.resolve(__dirname, './src/types'),
+    },
+  },
+  
+  // 开发服务器
+  server: {
+    port: 5173,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+  
+  // 构建优化
+  build: {
+    target: 'esnext',
+    minify: 'esbuild',
+    cssCodeSplit: true,
+  },
+});
+```
+
+```typescript
+// src/main.tsx - React 18 应用入口
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import App from './App';
+import './index.css';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 分钟
+      gcTime: 1000 * 60 * 30, // 30 分钟
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </React.StrictMode>
+);
+```
+
+**React 状态管理与 Vite 的配合：**
+
+```typescript
+// src/stores/userStore.ts - Zustand 状态管理
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+interface UserStore {
+  user: User | null;
+  isAuthenticated: boolean;
+  login: (user: User) => void;
+  logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
+}
+
+export const useUserStore = create<UserStore>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
+      login: (user) => set({ user, isAuthenticated: true }),
+      logout: () => set({ user: null, isAuthenticated: false }),
+      updateUser: (updates) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...updates } : null,
+        })),
+    }),
+    {
+      name: 'user-storage', // localStorage key
+    }
+  )
+);
+
+// 在组件中使用
+// import { useUserStore } from '@/stores/userStore';
+// const { user, isAuthenticated, login, logout } = useUserStore();
+```
+
+### Vite 在 Vue 生态中的深度集成
+
+Vue 3 与 Vite 的结合是最为紧密的，许多 Vue 生态的工具都原生支持 Vite。Vue 官方团队也参与了 Vite 的开发，这使得 Vue + Vite 的组合在开发体验上达到了极高的水准。
+
+**Vue 3 + Vite 项目最佳实践：**
+
+```typescript
+// vite.config.ts - Vue 3 完整配置
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import vueJsx from '@vitejs/plugin-vue-jsx';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+  plugins: [
+    vue({
+      // Vue 编译器选项
+      template: {
+        compilerOptions: {
+          // 自定义指令
+          directiveTransforms: {},
+        },
+        // Transform asset URLs
+        transformAssetUrls: {
+          base: '/',
+          includeAbsolute: false,
+        },
+      },
+      // script setup 支持
+      script: {
+        defineModel: true, // 启用 defineModel 宏
+        propsDestructure: true, // 启用 props 解构
+        asyncTransforms: true, // 启用异步转换
+      },
+    }),
+    
+    // Vue JSX 支持
+    vueJsx({
+      // JSX 配置
+      transformOn: true,
+      mergeProps: true,
+      enableObjectSlots: true,
+    }),
+  ],
+  
+  // 路径别名
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '~': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@composables': path.resolve(__dirname, './src/composables'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@stores': path.resolve(__dirname, './src/stores'),
+      '@types': path.resolve(__dirname, './src/types'),
+    },
+  },
+  
+  // CSS 配置
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // 自动注入变量
+        additionalData: `@import "@/styles/variables.scss";`,
+        // Sass API 选项
+        api: 'modern-compiler',
+      },
+    },
+    modules: {
+      // CSS Modules 配置
+      generateScopedName: '[name]__[local]___[hash:base64:5]',
+      localsConvention: 'camelCase',
+    },
+  },
+});
+```
+
+```typescript
+// src/main.ts - Vue 3 应用入口
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import router from './router';
+import App from './App.vue';
+import './styles/main.scss';
+
+const app = createApp(App);
+
+// Pinia 状态管理
+app.use(createPinia());
+
+// Vue Router
+app.use(router);
+
+// 全局错误处理
+app.config.errorHandler = (err, instance, info) => {
+  console.error('Global error:', err);
+  console.error('Component:', instance);
+  console.error('Info:', info);
+};
+
+// 全局警告处理
+app.config.warnHandler = (msg, instance, trace) => {
+  console.warn('Global warning:', msg);
+  console.warn('Trace:', trace);
+};
+
+app.mount('#app');
+```
+
+**Vue 3 Composition API 与 Vite 的配合：**
+
+```typescript
+// src/composables/useFetch.ts - 封装的 fetch 组合式函数
+import { ref, watchEffect, type Ref } from 'vue';
+
+interface FetchOptions {
+  immediate?: boolean;
+  refetch?: boolean;
+  transform?: (data: any) => any;
+}
+
+export function useFetch<T>(
+  url: string | Ref<string>,
+  options: FetchOptions = {}
+) {
+  const data = ref<T | null>(null) as Ref<T | null>;
+  const error = ref<Error | null>(null);
+  const loading = ref(false);
+
+  const { immediate = true, refetch = false, transform } = options;
+
+  async function execute() {
+    const currentUrl = typeof url === 'string' ? url : url.value;
+    
+    if (!currentUrl) return;
+
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const response = await fetch(currentUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const json = await response.json();
+      data.value = transform ? transform(json) : json;
+    } catch (e) {
+      error.value = e as Error;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  if (immediate) {
+    watchEffect(execute);
+  }
+
+  return {
+    data,
+    error,
+    loading,
+    execute,
+  };
+}
+
+// 使用示例
+// const { data, error, loading, execute } = useFetch<User[]>('/api/users');
+```
+
+### Vite 在 Svelte 生态中的应用
+
+Svelte 与 Vite 的结合带来了极致的编译时优化。Svelte 本身就以编译时优化著称，而 Vite 提供了快速的开发服务器和构建流程，两者的结合使得 Svelte 应用在性能和开发体验上都达到了很高的水准。
+
+**Svelte + Vite 项目配置：**
+
+```typescript
+// vite.config.ts - Svelte 完整配置
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [
+    svelte({
+      // Svelte 编译器选项
+      compilerOptions: {
+        // 启用响应式声明检查
+        dev: process.env.NODE_ENV !== 'production',
+      },
+      // 插件配置
+      pluginHook: {},
+      // Hot Module Replacement
+      hot: {
+        optimisticApplyBaseHmr: true,
+      },
+    }),
+  ],
+  
+  // 路径别名
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/lib/components'),
+      '@stores': path.resolve(__dirname, './src/lib/stores'),
+      '@utils': path.resolve(__dirname, './src/lib/utils'),
+    },
+  },
+  
+  // CSS
+  css: {
+    devSourcemap: true,
+  },
+});
+```
+
+```javascript
+// svelte.config.js - Svelte 配置文件
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+export default {
+  preprocess: vitePreprocess(),
+  
+  compilerOptions: {
+    // 运行时警告
+    warningFilter: (warning) => {
+      if (warning.code.startsWith('a11y-')) {
+        return false; // 禁用无障碍警告
+      }
+      return true;
+    },
+  },
+  
+  onwarn: (warning, handler) => {
+    // 自定义警告处理
+    if (warning.code === 'css-unused-selector') {
+      return; // 忽略未使用的 CSS 选择器警告
+    }
+    handler(warning);
+  },
+};
+```
+
+### Vite 与 TypeScript 的深度整合
+
+TypeScript 是现代前端开发的标配，Vite 对 TypeScript 提供了开箱即用的支持。与 Webpack 需要额外配置 ts-loader 或 babel-loader 不同，Vite 可以直接处理 TypeScript 文件，编译速度远超传统方案。
+
+**TypeScript 在 Vite 项目中的最佳实践：**
+
+```json
+// tsconfig.json - 完整的 TypeScript 配置
+{
+  "compilerOptions": {
+    // 基础配置
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    
+    // 模块解析
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    
+    // JSX 配置
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    
+    // 严格模式
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    
+    // 路径映射
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@utils/*": ["src/utils/*"],
+      "@stores/*": ["src/stores/*"],
+      "@api/*": ["src/api/*"],
+      "@types/*": ["src/types/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+```
+
+```json
+// tsconfig.node.json - Node.js 环境配置
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}
+```
+
+**类型定义文件：**
+
+```typescript
+// src/env.d.ts - 环境变量类型定义
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_APP_TITLE: string;
+  readonly VITE_API_URL: string;
+  readonly VITE_WS_URL: string;
+  readonly VITE_PUBLIC_KEY: string;
+  readonly VITE_ENABLE_ANALYTICS: string;
+  readonly VITE_BUILD_TIME: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
+// CSS 模块类型
+declare module '*.module.css' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.scss' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+
+// SVG 组件类型
+declare module '*.svg?component' {
+  import type { ComponentType, SVGProps } from 'react';
+  const Component: ComponentType<SVGProps<SVGSVGElement>>;
+  export default Component;
+}
+
+// JSON 类型
+declare module '*.json' {
+  const value: Record<string, any>;
+  export default value;
+}
+```
+
+### Vite 与环境变量的处理
+
+环境变量是现代应用配置的重要组成部分，Vite 提供了优雅的方式来处理不同环境的配置。Vite 使用 `.env` 文件来管理环境变量，并通过 `VITE_` 前缀来区分客户端可访问的变量。
+
+**环境变量文件组织：**
+
+```bash
+# .env - 所有环境共享的基本配置
+VITE_APP_NAME=My Application
+VITE_DEFAULT_LANGUAGE=zh-CN
+
+# .env.development - 开发环境
+VITE_API_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080
+VITE_ENABLE_MOCK=true
+VITE_DEBUG=true
+
+# .env.production - 生产环境
+VITE_API_URL=https://api.example.com
+VITE_WS_URL=wss://api.example.com
+VITE_ENABLE_MOCK=false
+VITE_DEBUG=false
+
+# .env.local - 本地覆盖（不提交到版本控制）
+VITE_API_URL=http://localhost:9090
+
+# .env.staging - 预发布环境
+VITE_API_URL=https://staging-api.example.com
+```
+
+```typescript
+// src/config/app.ts - 环境配置的统一管理
+import { z } from 'zod';
+
+// 环境配置 Schema
+const configSchema = z.object({
+  app: z.object({
+    name: z.string(),
+    version: z.string(),
+  }),
+  api: z.object({
+    baseUrl: z.string().url(),
+    wsUrl: z.string(),
+    timeout: z.number().default(30000),
+  }),
+  features: z.object({
+    enableMock: z.boolean(),
+    enableAnalytics: z.boolean(),
+    enableDebug: z.boolean(),
+  }),
+});
+
+// 验证并获取配置
+function getConfig() {
+  const config = {
+    app: {
+      name: import.meta.env.VITE_APP_NAME || 'My App',
+      version: import.meta.env.VITE_APP_VERSION || '1.0.0',
+    },
+    api: {
+      baseUrl: import.meta.env.VITE_API_URL || '',
+      wsUrl: import.meta.env.VITE_WS_URL || '',
+      timeout: 30000,
+    },
+    features: {
+      enableMock: import.meta.env.VITE_ENABLE_MOCK === 'true',
+      enableAnalytics: import.meta.env.VITE_ENABLE_ANALYTICS !== 'false',
+      enableDebug: import.meta.env.VITE_DEBUG === 'true',
+    },
+  };
+
+  return configSchema.parse(config);
+}
+
+export const config = getConfig();
+
+// 使用示例
+// import { config } from '@/config/app';
+// console.log(config.api.baseUrl);
+```
+
+### Vite 生产部署最佳实践
+
+将 Vite 项目部署到生产环境需要考虑多个方面，包括服务器配置、缓存策略、HTTPS 设置等。
+
+**典型生产环境配置：**
+
+```nginx
+# nginx.conf - Vite 项目部署配置
+
+http {
+    # Gzip 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/xml text/javascript 
+               application/javascript application/json application/xml;
+    
+    # 静态资源缓存
+    map $request_filename $cache_control {
+        ~*\.(js|css|woff2?)$ "public, max-age=31536000, immutable";
+        ~*\.(png|jpg|jpeg|gif|svg|ico)$ "public, max-age=31536000";
+        default "no-cache";
+    }
+    
+    server {
+        listen 80;
+        server_name example.com;
+        root /var/www/my-app/dist;
+        index index.html;
+        
+        # 强制 HTTPS
+        return 301 https://$server_name$request_uri;
+    }
+    
+    server {
+        listen 443 ssl http2;
+        server_name example.com;
+        root /var/www/my-app/dist;
+        index index.html;
+        
+        # SSL 配置
+        ssl_certificate /etc/ssl/certs/example.com.pem;
+        ssl_certificate_key /etc/ssl/private/example.com.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        
+        # 安全头
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        
+        # SPA 路由支持
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+        
+        # 静态资源
+        location ~* \.(js|css|woff2?|png|jpg|jpeg|gif|svg|ico)$ {
+            expires 1y;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            access_log off;
+        }
+        
+        # API 代理
+        location /api {
+            proxy_pass http://localhost:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+}
+```
+
+### Vite 与微前端架构
+
+Vite 6 引入了稳定化的 Module Federation 支持，这使得构建微前端架构变得更加简单。Module Federation 允许不同团队独立开发和部署应用的一部分，同时共享公共依赖。
+
+**微前端项目结构：**
+
+```
+monorepo/
+├── packages/
+│   ├── host/              # 主机应用
+│   │   ├── src/
+│   │   ├── vite.config.ts
+│   │   └── package.json
+│   │
+│   ├── remote-button/     # 远程按钮组件
+│   │   ├── src/
+│   │   ├── vite.config.ts
+│   │   └── package.json
+│   │
+│   ├── remote-header/     # 远程头部组件
+│   │   ├── src/
+│   │   ├── vite.config.ts
+│   │   └── package.json
+│   │
+│   └── shared/            # 共享依赖
+│       ├── src/
+│       └── package.json
+│
+├── package.json           # 根 workspace 配置
+└── pnpm-workspace.yaml
+```
+
+```typescript
+// packages/host/vite.config.ts - 主机应用配置
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import federation from 'vite-plugin-federation';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    federation({
+      // 主机名称
+      name: 'host',
+      // 共享的依赖
+      shared: ['react', 'react-dom', 'zustand', 'react-router-dom'],
+      // 远程模块
+      remotes: {
+        // 远程按钮组件
+        remote_button: 'http://localhost:5001/assets/remoteEntry.js',
+        // 远程头部组件
+        remote_header: 'http://localhost:5002/assets/remoteEntry.js',
+      },
+    }),
+  ],
+  build: {
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        format: 'system',
+      },
+    },
+  },
+  server: {
+    port: 3000,
+  },
+});
+```
+
+```typescript
+// packages/remote-button/vite.config.ts - 远程按钮组件配置
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import federation from 'vite-plugin-federation';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    federation({
+      // 远程模块名称
+      name: 'remote_button',
+      // 暴露的模块
+      exposes: {
+        './Button': './src/components/Button.tsx',
+        './IconButton': './src/components/IconButton.tsx',
+        './ButtonGroup': './src/components/ButtonGroup.tsx',
+      },
+      // 共享的依赖
+      shared: ['react', 'react-dom', 'zustand'],
+    }),
+  ],
+  build: {
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        format: 'system',
+        // 远程入口文件名
+        entryFileNames: 'assets/[name].js',
+      },
+    },
+  },
+  server: {
+    port: 5001,
+    cors: true,
+  },
+});
+```
+
+```tsx
+// packages/remote-button/src/components/Button.tsx - 暴露的按钮组件
+import React from 'react';
+import './Button.css';
+
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  children,
+  onClick,
+  disabled = false,
+  loading = false,
+}) => {
+  const variantClasses = {
+    primary: 'bg-blue-600 text-white hover:bg-blue-700',
+    secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
+    outline: 'border-2 border-gray-300 hover:bg-gray-100',
+    ghost: 'hover:bg-gray-100',
+  };
+
+  const sizeClasses = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-base',
+    lg: 'px-6 py-3 text-lg',
+  };
+
+  return (
+    <button
+      className={`btn ${variantClasses[variant]} ${sizeClasses[size]}`}
+      onClick={onClick}
+      disabled={disabled || loading}
+    >
+      {loading && <span className="spinner" />}
+      {children}
+    </button>
+  );
+};
+
+export default Button;
+```
+
+### Vite 与知识库中其他文档的关系
+
+在整个 vibecoding 知识库体系中，Vite 相关的文档分布在不同的章节，它们各自承担不同的角色，共同构成了完整的构建工具学习路径。理解这些文档之间的关系，可以帮助我们更好地规划学习路线和查找所需信息。
+
+**03-前端元框架/Vite.md** 是 Vite 的入门和框架集成文档，它从宏观的角度介绍 Vite 的核心概念、与各种前端框架的集成方式、以及何时选择 Vite 作为构建工具。这份文档的目标读者是想要了解 Vite 生态全景的开发者，以及需要在特定框架中使用 Vite 的实践者。
+
+**11-构建工具与工程化/Vite深度指南.md** 是 Vite 的深度专题文档，它深入探讨 Vite 的高级特性，包括插件开发原理、构建优化细节、环境配置高级用法等主题。这份文档适合已经掌握 Vite 基础，想要深入理解 Vite 内部机制和高级用法的开发者。
+
+**11-构建工具与工程化/** 目录下还有其他构建工具相关的文档，如 Webpack、Rollup、esbuild 等，这些文档帮助我们理解 Vite 在构建工具生态系统中的位置，以及何时应该选择其他工具。
+
+这两个层次的文档相互补充，形成了一个从入门到精通的完整学习路径。初学者可以从 03 的概述开始，了解 Vite 的基本概念和框架集成；有一定经验的开发者可以参考 11 的深度指南专题，掌握 Vite 的高级用法和内部原理；需要选择构建工具时可以对比其他工具的文档，选择最适合项目的方案。
+
+---
+
+> [!RELATED]
+> - [[11-构建工具与工程化/Vite深度指南]] - Vite 高级配置与原理
+> - [[03-前端元框架/Tailwind-CSS]] - Tailwind 与 Vite 集成
+> - [[11-构建工具与工程化/前端工程化概述]] - 工程化知识体系
+> - [[11-构建工具与工程化/构建工具对比]] - Webpack vs Vite vs Rollup

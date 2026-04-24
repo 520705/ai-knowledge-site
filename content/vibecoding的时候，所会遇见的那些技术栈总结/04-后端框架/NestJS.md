@@ -1,3 +1,15 @@
+---
+title: NestJS 完全指南
+date: 2026-04-24
+tags:
+  - 后端框架
+  - Node.js
+  - NestJS
+  - TypeScript
+  - 企业级
+description: NestJS 是一个受 Angular 启发的渐进式 Node.js 框架，提供模块化架构、依赖注入、AOP 等企业级特性，本指南涵盖其架构、核心模块、认证授权及与 Spring Boot 的对比。
+---
+
 # NestJS 完全指南
 
 > [!NOTE]
@@ -5,157 +17,94 @@
 
 ---
 
-## 目录
+## NestJS 概述：Angular 的灵魂，Node.js 的躯壳
 
-1. [[#NestJS 概述与核心哲学]]
-2. [[#NestJS vs Express vs Fastify 对比]]
-3. [[#核心架构]]
-4. [[#依赖注入详解]]
-5. [[#核心模块]]
-6. [[#Guards/Interceptors/Pipes/Decorators]]
-7. [[#微服务与消息队列]]
-8. [[#GraphQL 与 WebSocket 集成]]
-9. [[#AI 应用实战]]
-10. [[#选型建议]]
+NestJS 是由 Kamil Myśliwiec 于 2017 年创建的一个 Node.js 后端框架，它的设计灵感直接来源于 Angular——如果你曾经使用过 Angular，你会发现 NestJS 的模块、依赖注入、装饰器和分层架构都与 Angular 如出一辙。这种设计选择并非偶然：Angular 团队在构建大型前端应用时积累的工程化经验，被成功地移植到了后端领域。
 
----
+NestJS 的官方定位是「**一个用于构建高效、可扩展的 Node.js 服务器端应用的渐进式框架**」。这里的「渐进式」有三个层面的含义：首先是**学习曲线的渐进性**——你可以从最简单的单文件应用开始，逐步引入模块、依赖注入等概念；其次是**功能的渐进性**——从简单的 HTTP API 到复杂的微服务、GraphQL、WebSocket，NestJS 都有内置支持；第三是**架构的渐进性**——随着项目规模增长，NestJS 的模块化架构让你可以优雅地扩展代码库，而不会出现难以维护的「意大利面条式」代码。
 
-## NestJS 概述与核心哲学
+### 为什么选择 NestJS
 
-### 什么是 NestJS
+很多开发者在选择后端框架时会问：Express 和 Fastify 已经足够用了，为什么还需要 NestJS？这个问题触及了框架选择的核心矛盾——**灵活性 vs 结构性的权衡**。
 
-NestJS 是一个用于构建高效、可扩展的 Node.js 服务器端应用的**渐进式框架**。它受 Angular 启发，采用模块化架构，使用 TypeScript 编写（但支持纯 JavaScript），提供了依赖注入、装饰器模式、模块化组织等企业级特性。
+想象一下，你接手了一个有 50 个路由、20 个中间件、同时操作 3 个数据库的中型 Express 项目。现在产品经理要求你新增一个「审计日志」功能——记录每个用户的操作历史。在 Express 中，你可能需要在每个路由处理器中添加审计逻辑，或者写一个中间件但需要处理各种边界情况。这个功能做起来很痛苦，维护起来更痛苦，因为没有人能说清楚审计逻辑的完整边界在哪里。
 
-**NestJS 核心特点：**
-
-| 特性 | 说明 |
-|------|------|
-| **模块化架构** | Module/Controller/Provider 组织代码 |
-| **依赖注入** | 强大的 IoC 容器 |
-| **装饰器模式** | 类和方法的元数据标记 |
-| **TypeScript 原生** | 完整的类型安全 |
-| **可扩展性** | 插件和中间件生态丰富 |
-| **多协议支持** | HTTP/GraphQL/WebSocket/gRPC |
-
-### NestJS 发展历程
-
-| 版本 | 发布年份 | 核心特性 |
-|------|---------|---------|
-| NestJS 1.0 | 2017 | 初始版本，核心架构 |
-| NestJS 4.0 | 2017 | 稳定版发布 |
-| NestJS 6.0 | 2019 | 微服务支持增强 |
-| NestJS 8.0 | 2021 | 性能优化，Fastify 支持 |
-| NestJS 10.0 | 2023 | 改进性能，懒加载模块 |
-| **NestJS 11** | **2025** | **更好的 TypeScript 5 支持** |
-
-### 核心理念
-
-**NestJS 的设计哲学：**
-
-1. **渐进式**：从简单到复杂，无缝扩展
-2. **模块化**：每个功能封装在独立模块中
-3. **约定优于配置**：遵循 Angular 风格的约定
-4. **企业级**：依赖注入、AOP、测试支持
-5. **多范式**：OOP/FP/FRP 混合编程
-
-> [!IMPORTANT]
-> NestJS 不是"另一个 Express"，而是一套完整的后端应用框架。它强制采用模块化架构，适合构建中大型企业应用。
-
----
-
-## NestJS vs Express vs Fastify 对比
-
-### 框架对比
-
-| 特性 | NestJS | Express | Fastify |
-|------|--------|---------|---------|
-| **架构** | 模块化 | 中间件栈 | 插件系统 |
-| **依赖注入** | 内置 | 无 | 需额外库 |
-| **TypeScript** | 原生 | 需配置 | 需配置 |
-| **性能** | 中等 | 良好 | 最快 |
-| **学习曲线** | 较陡 | 低 | 低 |
-| **生态** | 丰富 | 极丰富 | 增长中 |
-| **GraphQL 支持** | 原生 | 需库 | 需库 |
-| **微服务** | 内置 | 无 | 无 |
-| **适用场景** | 企业应用 | API/REST | 高性能 API |
-
-### 性能对比
-
-| 指标 | NestJS + Express | NestJS + Fastify | Express | Fastify |
-|------|-----------------|-----------------|---------|---------|
-| **吞吐量** | ~15K req/s | ~30K req/s | ~25K req/s | ~45K req/s |
-| **延迟** | ~5ms | ~2ms | ~3ms | ~1ms |
-| **内存** | ~120MB | ~80MB | ~60MB | ~50MB |
-
-### 代码风格对比
-
-**Express：**
+NestJS 通过「**切面编程（AOP）**」的思路解决了这个问题。审计日志不需要分散在各个路由处理器中，而是可以通过一个「**拦截器（Interceptor）**」统一处理。这个拦截器可以被精细地应用到特定的路由上，而不影响其他路由。依赖注入则让你可以像拼积木一样组合服务，每个服务的依赖由框架自动管理，你不需要手动处理初始化顺序。
 
 ```typescript
-import express from 'express';
+// 审计日志拦截器：只需要写一次，到处使用
+@Injectable()
+export class AuditInterceptor implements NestInterceptor {
+  constructor(private auditService: AuditService) {}
 
-const app = express();
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    const { method, url } = request;
+    const userId = request.user?.id;
 
-app.get('/users/:id', async (req, res) => {
-  const user = await getUserById(req.params.id);
-  res.json(user);
-});
-
-app.post('/users', async (req, res) => {
-  const user = await createUser(req.body);
-  res.status(201).json(user);
-});
-
-app.listen(3000);
-```
-
-**Fastify：**
-
-```typescript
-import Fastify from 'fastify';
-
-const app = Fastify();
-
-app.get('/users/:id', async (req, res) => {
-  const user = await getUserById(req.params.id);
-  return user;
-});
-
-app.post('/users', async (req, res) => {
-  const user = await createUser(req.body);
-  res.status(201).send(user);
-});
-
-app.listen({ port: 3000 });
-```
-
-**NestJS：**
-
-```typescript
-// users.controller.ts
-@Controller('users')
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
-
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+    return next.handle().pipe(
+      tap((response) => {
+        // 请求成功时记录审计日志
+        this.auditService.log({
+          userId,
+          action: method,
+          resource: url,
+          status: 'success',
+          timestamp: new Date(),
+        });
+      }),
+      catchError((error) => {
+        // 请求失败时也记录
+        this.auditService.log({
+          userId,
+          action: method,
+          resource: url,
+          status: 'error',
+          error: error.message,
+          timestamp: new Date(),
+        });
+        throw error;
+      }),
+    );
   }
+}
+
+// 使用拦截器：只需要一行装饰器
+@Controller('users')
+@UseInterceptors(AuditInterceptor)
+export class UsersController {
+  // 这里的每个方法都会被审计
+  @Get()
+  findAll() { /* ... */ }
 
   @Post()
-  async create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
-  }
+  create(@Body() dto: CreateUserDto) { /* ... */ }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) { /* ... */ }
 }
 ```
 
+### NestJS 的适用边界
+
+NestJS 并不是万能的。理解它的适用边界，才能做出正确的技术选型。
+
+NestJS **适合**的场景包括：大型企业级应用、团队成员有 Angular 背景、需要强类型安全和完整的代码结构、构建微服务架构、需要 GraphQL 和 REST 并存的项目、需要大量测试覆盖的长期维护项目。
+
+NestJS **不适合**的场景包括：简单的脚本或工具类、需要极致性能的超高并发 API（此时 Fastify 更合适）、需要部署到边缘计算环境（此时 Hono 更合适）、快速原型和 MVP 开发（Express 更快）、Serverless 冷启动敏感的场景。
+
+> [!TIP]
+> **选型小技巧**：如果你需要在 Express 的灵活性和 NestJS 的结构性之间做选择，问自己一个问题：「我的项目在 2 年后会是什么规模？」如果答案是「更大」，NestJS 的前期投入是值得的。如果答案是「保持小」，用 Express 会更轻便。
+
 ---
 
-## 核心架构
+## 核心架构：Module、Controller、Provider
 
-### Module（模块）
+NestJS 的整个应用都是围绕「**模块化**」这个核心理念构建的。一个 NestJS 应用由多个模块组成，每个模块封装了相关的功能，而模块之间通过导入导出来建立依赖关系。
 
-模块是 NestJS 应用的基本组织单位：
+### Module（模块）：代码组织的基本单元
+
+模块是 NestJS 中组织代码的最高层概念。每个应用至少有一个「根模块」（通常是 `AppModule`），但在实际项目中，你应该根据功能领域来划分模块。
 
 ```typescript
 // users.module.ts
@@ -163,28 +112,30 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { User } from './user.entity';
+import { User } from './entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  // 导入其他模块
+  // 导入其他模块（获取它们的导出）
   imports: [
-    TypeOrmModule.forFeature([User]),
-    AuthModule
+    TypeOrmModule.forFeature([User]), // 在当前模块中使用 User 实体
+    AuthModule, // 导入认证模块以使用其导出的服务
   ],
-  // 控制器
+  // 控制器（处理 HTTP 请求）
   controllers: [UsersController],
-  // 服务提供者
+  // 服务提供者（业务逻辑）
   providers: [UsersService],
-  // 导出服务供其他模块使用
-  exports: [UsersService]
+  // 导出（让其他模块可以使用）
+  exports: [UsersService],
 })
 export class UsersModule {}
 ```
 
-### Controller（控制器）
+模块的设计原则是「**高内聚、低耦合**」。一个好的模块应该：专注于一个功能领域、拥有清晰的公共 API（通过 exports）、不过度依赖其他模块。一个常见的问题是「上帝模块」——把所有东西都塞进一个巨大的 AppModule。这在小型项目中可能无所谓，但随着项目增长，这种做法会严重影响代码的可维护性。
 
-控制器处理 HTTP 请求：
+### Controller（控制器）：请求的入口
+
+控制器负责处理 HTTP 请求和响应，它不包含业务逻辑——那是 Provider（服务）的职责。控制器的工作是：接收请求、验证参数、调用服务、返回响应。
 
 ```typescript
 // users.controller.ts
@@ -192,108 +143,189 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
+  Headers,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  UseGuards,
+  UseInterceptors,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { PaginationQueryDto } from '../common/dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { AuditInterceptor } from '../common/interceptors/audit.interceptor';
+import { SetMetadata } from '@nestjs/common';
+
+// 定义角色元数据的辅助函数
+const ROLES_KEY = 'roles';
+const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
 @Controller('users')
+@UseInterceptors(AuditInterceptor) // 审计日志
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // GET /users - 获取用户列表
   @Get()
+  @UseGuards(JwtAuthGuard) // JWT 认证
   async findAll(@Query() query: PaginationQueryDto) {
     return this.usersService.findAll(query);
   }
 
+  // GET /users/:id - 获取单个用户
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
+  // POST /users - 创建用户
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin') // 只有管理员可以创建用户
   async create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
+  // PUT /users/:id - 完整更新
+  @Put(':id')
+  @UseGuards(JwtAuthGuard)
+  async replace(
+    @Param('id') id: string,
+    @Body() createUserDto: CreateUserDto,
+  ) {
+    return this.usersService.replace(id, createUserDto);
+  }
+
+  // PATCH /users/:id - 部分更新
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   async update(
     @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto
+    @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(id, updateUserDto);
   }
 
+  // DELETE /users/:id - 删除用户
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
 }
 ```
 
-### Provider（服务）
+### Provider（服务）：业务逻辑的载体
 
-服务是业务逻辑的主要载体：
+服务是 NestJS 中「**依赖注入**」的主要载体。在 Angular 的术语中，Provider 也被称为「Service」，但在 NestJS 中「Service」只是 Provider 的一种形式。
 
 ```typescript
 // users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import * as bcrypt from 'bcryptjs';
+import { User } from './entities/user.entity';
 import { CreateUserDto, UpdateUserDto, PaginationQueryDto } from './dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async findAll(query: PaginationQueryDto) {
-    const { page = 1, limit = 10 } = query;
+    const { page = 1, limit = 10, search, sort = 'createdAt', order = 'DESC' } = query;
     const skip = (page - 1) * limit;
 
-    const [users, total] = await this.userRepository.findAndCount({
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' }
-    });
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    if (search) {
+      queryBuilder.where(
+        '(user.email ILIKE :search OR user.username ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    queryBuilder
+      .orderBy(`user.${sort}`, order)
+      .skip(skip)
+      .take(limit);
+
+    const [users, total] = await queryBuilder.getManyAndCount();
 
     return {
-      data: users,
+      data: users.map(user => this.sanitizeUser(user)),
       meta: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
   async findOne(id: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
+
     if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+      throw new NotFoundException(`用户 ${id} 不存在`);
     }
+
     return user;
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    const user = this.userRepository.create(createUserDto);
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { email } });
+  }
+
+  async create(dto: CreateUserDto): Promise<User> {
+    // 检查邮箱唯一性
+    const existing = await this.userRepository.findOne({
+      where: [{ email: dto.email }, { username: dto.username }],
+    });
+
+    if (existing) {
+      const field = existing.email === dto.email ? '邮箱' : '用户名';
+      throw new ConflictException(`${field}已被注册`);
+    }
+
+    // 密码哈希
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
+
+    const user = this.userRepository.create({
+      ...dto,
+      password: hashedPassword,
+    });
+
     return this.userRepository.save(user);
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: string, dto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
-    Object.assign(user, updateUserDto);
+
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.userRepository.findOne({ where: { email: dto.email } });
+      if (existing) {
+        throw new ConflictException('该邮箱已被使用');
+      }
+    }
+
+    Object.assign(user, dto);
     return this.userRepository.save(user);
   }
 
@@ -301,2270 +333,429 @@ export class UsersService {
     const user = await this.findOne(id);
     await this.userRepository.remove(user);
   }
+
+  // 移除敏感字段
+  private sanitizeUser(user: User) {
+    const { password, ...sanitized } = user;
+    return sanitized;
+  }
 }
-```
-
-### 应用入口
-
-```typescript
-// main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // 全局前缀
-  app.setGlobalPrefix('api/v1');
-
-  // 全局管道 - 请求验证
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true
-      }
-    })
-  );
-
-  // CORS
-  app.enableCors();
-
-  // Swagger 文档
-  const config = new DocumentBuilder()
-    .setTitle('API Documentation')
-    .setDescription('API description')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-
-  await app.listen(3000);
-  console.log(`Application is running on: ${await app.getUrl()}`);
-}
-
-bootstrap();
 ```
 
 ---
 
-## 依赖注入详解
+## 依赖注入容器：NestJS 的心脏
 
-### 依赖注入原理
+依赖注入（Dependency Injection，简称 DI）是 NestJS 最核心的概念。简单来说，依赖注入就是：不是让对象自己创建它所需要的依赖，而是让外部（框架）把依赖「注入」进来。
 
-NestJS 使用 TypeScript 装饰器和反射实现依赖注入：
+### 依赖注入的基本原理
+
+要理解依赖注入，我们先来看一个没有依赖注入的代码会是什么样：
 
 ```typescript
-// 1. 定义 Token（接口或字符串）
-const USER_SERVICE_TOKEN = 'USER_SERVICE';
+// 没有 DI 的代码：Service 自己创建依赖
+class UsersService {
+  private repository: UserRepository;
+  private emailService: EmailService;
+  private logger: Logger;
 
-// 2. 定义 Provider
-@Injectable()
-class UserService {
-  findAll() { return []; }
+  constructor() {
+    // 手动创建依赖实例
+    this.repository = new UserRepository();
+    this.emailService = new EmailService();
+    this.logger = new Logger('UsersService');
+  }
 }
+```
 
-// 3. 注册 Provider
-@Module({
-  providers: [
-    { provide: USER_SERVICE_TOKEN, useClass: UserService }
-  ]
-})
+这种写法的问题在于：测试时无法 mock 依赖、依赖的初始化顺序需要手动管理、代码耦合度高。
 
-// 4. 注入 Provider
-@Controller()
-export class UsersController {
+使用依赖注入后：
+
+```typescript
+// 有 DI 的代码：依赖由框架注入
+@Injectable()
+class UsersService {
   constructor(
-    @Inject(USER_SERVICE_TOKEN)
-    private readonly userService: UserService
+    private readonly userRepository: UserRepository,
+    private readonly emailService: EmailService,
+    private readonly logger: Logger,
   ) {}
 }
 ```
 
-### Provider 类型
+你不需要关心这些依赖是如何创建和初始化的，NestJS 的 IoC（控制反转）容器会处理这一切。
+
+### Provider 的多种形式
+
+Provider 不仅仅指服务类，NestJS 支持多种形式的 Provider：
 
 ```typescript
 @Module({
   providers: [
-    // 类 Provider（最常用）
+    // 形式 1：类 Provider（最常用）
     UsersService,
 
-    // 值 Provider
-    { provide: 'CONFIG', useValue: { apiKey: 'xxx' } },
-
-    // 工厂 Provider
+    // 形式 2：值 Provider（注入常量或配置）
     {
-      provide: 'DATABASE_POOL',
-      useFactory: async () => {
-        const pool = await createPool({ host: 'localhost' });
-        return pool;
-      }
+      provide: 'CONFIG',
+      useValue: {
+        apiVersion: 'v1',
+        maxUsers: 10000,
+      },
     },
 
-    // 别名 Provider
-    { provide: 'AliasedService', useExisting: UsersService }
-  ]
-})
-export class AppModule {}
-```
+    // 形式 3：工厂 Provider（动态创建，可注入其他依赖）
+    {
+      provide: 'DATABASE_POOL',
+      inject: [ConfigService], // 可以注入其他 Provider
+      useFactory: async (configService: ConfigService) => {
+        const size = configService.get('DB_POOL_SIZE', 10);
+        return createPool({ size });
+      },
+    },
 
-### 作用域
+    // 形式 4：类 Provider（使用不同的类实现同一个接口）
+    {
+      provide: 'CACHE_STRATEGY',
+      useClass: process.env.NODE_ENV === 'production'
+        ? RedisCacheService
+        : InMemoryCacheService,
+    },
 
-```typescript
-// 请求作用域 - 每次请求创建新实例
-@Injectable({ scope: Scope.REQUEST })
-class RequestService {
-  constructor() {
-    console.log('New instance per request');
-  }
-}
-
-// 瞬态作用域 - 每次注入创建新实例
-@Injectable({ scope: Scope.TRANSIENT })
-class TransientService {}
-
-// 单例作用域（默认）- 应用生命周期内唯一实例
-@Injectable()
-class SingletonService {}
-```
-
-### 模块间的依赖
-
-```typescript
-// auth.module.ts
-@Module({
-  providers: [AuthService],
-  exports: [AuthService]  // 导出才能被其他模块使用
-})
-export class AuthModule {}
-
-// users.module.ts
-@Module({
-  imports: [AuthModule],  // 导入其他模块
-  controllers: [UsersController],
-  providers: [UsersService]
+    // 形式 5：别名 Provider
+    {
+      provide: 'USER_SERVICE',
+      useExisting: UsersService,
+    },
+  ],
 })
 export class UsersModule {}
 ```
 
----
+### 模块间的依赖管理
 
-## 核心模块
-
-### 常用内置模块
-
-| 模块 | 功能 | npm 包 |
-|------|------|--------|
-| `@nestjs/core` | 核心功能 | 内置 |
-| `@nestjs/common` | 公共装饰器/管道 | 内置 |
-| `@nestjs/platform-express` | Express 适配器 | 内置 |
-| `@nestjs/platform-fastify` | Fastify 适配器 | 内置 |
-| `@nestjs/typeorm` | TypeORM 集成 | @nestjs/typeorm |
-| `@nestjs/sequelize` | Sequelize 集成 | @nestjs/sequelize |
-| `@nestjs/graphql` | GraphQL 集成 | @nestjs/graphql |
-| `@nestjs/microservices` | 微服务支持 | 内置 |
-| `@nestjs/websockets` | WebSocket 支持 | 内置 |
-| `@nestjs/swagger` | Swagger 文档 | @nestjs/swagger |
-| `@nestjs/jwt` | JWT 认证 | @nestjs/jwt |
-| `@nestjs/passport` | Passport 认证 | @nestjs/passport |
-
-### TypeORM 集成
+模块之间通过导入导出建立依赖关系：
 
 ```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-
+// auth.module.ts - 定义和导出 AuthService
 @Module({
-  imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'user',
-      password: 'password',
-      database: 'db',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: false,  // 生产环境禁用
-      logging: true
-    })
-  ]
+  providers: [AuthService, JwtService],
+  exports: [AuthService, JwtService], // 导出后其他模块可以使用
+})
+export class AuthModule {}
+
+// users.module.ts - 导入并使用 AuthModule
+@Module({
+  imports: [AuthModule], // 导入 AuthModule
+  controllers: [UsersController],
+  providers: [UsersService],
+})
+export class UsersModule {}
+
+// 在 UsersController 中使用 AuthService
+@Controller('users')
+export class UsersController {
+  constructor(private readonly authService: AuthService) {
+    // AuthService 从 AuthModule 注入进来
+  }
+}
+```
+
+### 全局模块
+
+有些服务（如日志、配置）是几乎所有模块都需要的，如果每个模块都要显式导入会非常繁琐。这时可以使用全局模块：
+
+```typescript
+// config.module.ts
+@Global()
+@Module({
+  providers: [ConfigService],
+  exports: [ConfigService],
+})
+export class ConfigModule {}
+
+// app.module.ts
+@Module({
+  imports: [ConfigModule], // 只需导入一次
+  modules: [UsersModule, PostsModule, CommentsModule], // 所有子模块都能访问 ConfigService
 })
 export class AppModule {}
 ```
 
-### GraphQL 集成
-
-```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { join } from 'path';
-
-@Module({
-  imports: [
-    GraphQLModule.forRoot<ApolloDriverConfig>({
-      driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      sortSchema: true,
-      playground: true,
-      subscriptions: {
-        'graphql-ws': true
-      }
-    })
-  ]
-})
-export class AppModule {}
-```
+> [!WARNING]
+> **全局模块的陷阱**：过度使用全局模块会导致隐式依赖，使代码变得难以追踪。如果一个服务只在少数几个地方用到，不要设为全局的。好的做法是：只有真正「全局」的服务（如日志、配置）才设为全局模块。
 
 ---
 
-## Guards/Interceptors/Pipes/Decorators
+## Guards、Interceptors、Pipes 与 Decorators
 
-### Guards（守卫）
+NestJS 提供了四类核心工具来分离横切关注点（Cross-cutting Concerns）：
 
-守卫用于权限控制和路由保护：
+### Guards（守卫）：权限控制
+
+守卫用于控制对特定路由的访问权限。它们实现了 `CanActivate` 接口，在请求到达处理器之前执行。
 
 ```typescript
-// auth.guard.ts
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { JwtService } from '@nestjs/jwt';
-
+// jwt-auth.guard.ts - JWT 认证守卫
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
-    private jwtService: JwtService,
-    private reflector: Reflector
+    private readonly jwtService: JwtService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = this.extractTokenFromHeader(request);
+    const token = this.extractToken(request);
 
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedException('请先登录');
     }
 
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      request['user'] = payload;
+      request.user = payload;
     } catch {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('登录已过期，请重新登录');
     }
 
     return true;
   }
 
-  private extractTokenFromHeader(request): string | undefined {
+  private extractToken(request: any): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }
 }
 
-// roles.guard.ts
+// roles.guard.ts - 角色授权守卫
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [
-      context.getHandler(),
-      context.getClass()
-    ]);
+    // 从处理器或控制器获取所需角色
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
+    // 没有角色要求，直接通过
     if (!requiredRoles) {
       return true;
     }
 
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.some((role) => user.roles?.includes(role));
+
+    // 检查用户是否拥有所需角色之一
+    return requiredRoles.some(role => user?.roles?.includes(role));
   }
 }
 
 // 使用守卫
-@Controller('users')
+@Controller('posts')
 @UseGuards(JwtAuthGuard, RolesGuard)
-export class UsersController {
-  @SetMetadata('roles', ['admin'])
-  @Get('protected')
-  getProtected() {
-    return 'This is protected';
-  }
+export class PostsController {
+  @Get()
+  findAll() { /* 所有登录用户都可以访问 */ }
+
+  @Delete(':id')
+  @Roles('admin') // 只有管理员可以删除
+  remove(@Param('id') id: string) { /* ... */ }
 }
 ```
 
-### Interceptors（拦截器）
+### Interceptors（拦截器）：请求/响应转换
 
-拦截器用于请求/响应转换：
+拦截器提供了在请求-响应生命周期中「包裹」逻辑的能力，非常适合用于日志、缓存、响应转换等功能。
 
 ```typescript
-// logging.interceptor.ts
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
-
+// logging.interceptor.ts - 日志拦截器
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
+  constructor(private readonly logger: Logger) {}
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
     const { method, url } = request;
     const now = Date.now();
 
-    return next
-      .handle()
-      .pipe(
-        tap(() => {
-          const response = context.switchToHttp().getResponse();
-          console.log(`${method} ${url} - ${response.statusCode} - ${Date.now() - now}ms`);
-        })
-      );
+    this.logger.log(`➜ ${method} ${url} - started`);
+
+    return next.handle().pipe(
+      tap(() => {
+        const response = context.switchToHttp().getResponse();
+        const duration = Date.now() - now;
+        this.logger.log(`➜ ${method} ${url} - ${response.statusCode} - ${duration}ms`);
+      }),
+      catchError((error) => {
+        const duration = Date.now() - now;
+        this.logger.error(`✗ ${method} ${url} - ${error.status} - ${duration}ms`, error.stack);
+        throw error;
+      }),
+    );
   }
 }
 
-// transform.interceptor.ts
+// transform.interceptor.ts - 响应转换拦截器
 @Injectable()
-export class TransformInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+export class TransformInterceptor<T> implements NestInterceptor<T, Response<T>> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<Response<T>> {
     return next.handle().pipe(
       map((data) => ({
         success: true,
         data,
-        timestamp: new Date().toISOString()
-      }))
+        timestamp: new Date().toISOString(),
+      })),
     );
   }
 }
 
-// caching.interceptor.ts
+// cache.interceptor.ts - 缓存拦截器
 @Injectable()
 export class CacheInterceptor implements NestInterceptor {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
     const cacheTTL = this.reflector.get('cacheTTL', context.getHandler());
-
-    if (!cacheTTL) {
-      return next.handle();
-    }
-
     const request = context.switchToHttp().getRequest();
-    const cacheKey = `cache:${request.url}`;
+    const cacheKey = `cache:${request.method}:${request.url}`;
 
-    const cachedData = await this.cacheService.get(cacheKey);
-    if (cachedData) {
-      return of(cachedData);
+    // 缓存命中
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached && cacheTTL) {
+      return of(cached);
     }
 
+    // 缓存未命中，继续处理
     return next.handle().pipe(
       tap((data) => {
-        this.cacheService.set(cacheKey, data, cacheTTL);
-      })
+        if (cacheTTL) {
+          this.cacheService.set(cacheKey, data, cacheTTL);
+        }
+      }),
     );
   }
 }
+
+// 使用缓存拦截器
+@Controller('posts')
+export class PostsController {
+  @Get()
+  @UseInterceptors(CacheInterceptor)
+  @SetMetadata('cacheTTL', 60000) // 缓存 60 秒
+  findAll() { /* ... */ }
+}
 ```
 
-### Pipes（管道）
+### Pipes（管道）：数据转换与验证
 
-管道用于数据转换和验证：
+管道用于数据转换和验证。最常用的内置管道包括 `ParseIntPipe`、`ParseUUIDPipe`、`ValidationPipe` 等。
 
 ```typescript
-// validation.pipe.ts
-import {
-  PipeTransform,
-  Injectable,
-  ArgumentMetadata,
-  BadRequestException
-} from '@nestjs/common';
-import { validate } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
-
+// 自定义管道：解析枚举
 @Injectable()
-export class CustomValidationPipe implements PipeTransform<any> {
-  async transform(value: any, { metatype }: ArgumentMetadata) {
-    if (!metatype || !this.toValidate(metatype)) {
-      return value;
-    }
-
-    const object = plainToInstance(metatype, value);
-    const errors = await validate(object);
-
-    if (errors.length > 0) {
-      throw new BadRequestException('Validation failed');
-    }
-
-    return value;
-  }
-
-  private toValidate(metatype: Function): boolean {
-    const types: Function[] = [String, Boolean, Number, Array, Object];
-    return !types.includes(metatype);
-  }
-}
-
-// parse-int.pipe.ts
-@Injectable()
-export class ParseIntPipe implements PipeTransform<string, number> {
-  transform(value: string, metadata: ArgumentMetadata): number {
-    const val = parseInt(value, 10);
-    if (isNaN(val)) {
-      throw new BadRequestException('Validation failed');
-    }
-    return val;
-  }
-}
-
-// 使用管道
-@Get(':id')
-async findOne(@Param('id', ParseIntPipe) id: number) {
-  return this.usersService.findOne(id);
-}
-
-@Post()
-async create(
-  @Body(new CustomValidationPipe()) createUserDto: CreateUserDto
-) {
-  return this.usersService.create(createUserDto);
-}
-```
-
-### 自定义装饰器
-
-```typescript
-// current-user.decorator.ts
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-
-export const CurrentUser = createParamDecorator(
-  (data: string | undefined, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
-    const user = request.user;
-
-    return data ? user?.[data] : user;
-  }
-);
-
-// 使用
-@Get('profile')
-async getProfile(@CurrentUser() user: User) {
-  return user;
-}
-
-@Get('profile/:field')
-async getProfileField(
-  @CurrentUser('email') email: string
-) {
-  return email;
-}
-
-// headers.decorator.ts
-import { createParamDecorator } from '@nestjs/common';
-
-export const Headers = createParamDecorator(
-  (key: string | undefined, ctx: ExecutionContext) => {
-    const headers = ctx.switchToHttp().getRequest().headers;
-    return key ? headers[key.toLowerCase()] : headers;
-  }
-);
-```
-
----
-
-## 微服务与消息队列
-
-### 微服务架构
-
-```typescript
-// main.ts - HTTP 服务
-import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { AppModule } from './app.module';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: ['amqp://localhost:5672'],
-      queue: 'users_queue'
-    }
-  });
-
-  await app.startAllMicroservices();
-  await app.listen(3000);
-}
-
-bootstrap();
-```
-
-### Redis 消息队列
-
-```typescript
-// 使用 Redis 适配器
-app.connectMicroservice<MicroserviceOptions>({
-  transport: Transport.REDIS,
-  options: {
-    host: 'localhost',
-    port: 6379
-  }
-});
-
-// 消息处理器
-@MessagePattern('user:create')
-async handleUserCreate(@Payload() data: CreateUserDto) {
-  return this.usersService.create(data);
-}
-
-// 事件发射
-@Injectable()
-export class UsersService {
+export class ParseEnumPipe<T> implements PipeTransform<string, T> {
   constructor(
-    private readonly eventEmitter: EventEmitter2
+    private readonly enumType: T,
+    private readonly errorMessage?: string,
   ) {}
 
-  async create(dto: CreateUserDto) {
-    const user = await this.userRepository.save(dto);
-
-    // 发射事件
-    this.eventEmitter.emit('user.created', { userId: user.id });
-
-    return user;
-  }
-}
-```
-
----
-
-## GraphQL 与 WebSocket 集成
-
-### GraphQL Resolver
-
-```typescript
-// users.resolver.ts
-import { Resolver, Query, Mutation, Args, Subscription, Int } from '@nestjs/graphql';
-import { User, UserConnection } from './user.entity';
-import { UsersService } from './users.service';
-import { CreateUserInput, UpdateUserInput } from './dto';
-
-@Resolver(() => User)
-export class UsersResolver {
-  constructor(private readonly usersService: UsersService) {}
-
-  @Query(() => [User])
-  async users() {
-    return this.usersService.findAll();
-  }
-
-  @Query(() => User, { nullable: true })
-  async user(@Args('id') id: string) {
-    return this.usersService.findOne(id);
-  }
-
-  @Query(() => UserConnection)
-  async usersPaginated(
-    @Args('page', { type: () => Int, defaultValue: 1 }) page: number,
-    @Args('limit', { type: () => Int, defaultValue: 10 }) limit: number
-  ) {
-    return this.usersService.findAllPaginated(page, limit);
-  }
-
-  @Mutation(() => User)
-  async createUser(@Args('input') input: CreateUserInput) {
-    return this.usersService.create(input);
-  }
-
-  @Subscription(() => User)
-  userCreated() {
-    return this.pubSub.asyncIterator('userCreated');
-  }
-}
-```
-
-### WebSocket 网关
-
-```typescript
-// events.gateway.ts
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  MessageBody,
-  ConnectedSocket
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-
-@WebSocketGateway({
-  cors: {
-    origin: '*'
-  }
-})
-export class EventsGateway {
-  @WebSocketServer()
-  server: Server;
-
-  @SubscribeMessage('message')
-  handleMessage(
-    @MessageBody() data: string,
-    @ConnectedSocket() client: Socket
-  ) {
-    console.log(`Message from ${client.id}: ${data}`);
-    this.server.emit('message', { client: client.id, message: data });
-  }
-
-  @SubscribeMessage('join')
-  handleJoin(
-    @MessageBody() room: string,
-    @ConnectedSocket() client: Socket
-  ) {
-    client.join(room);
-    return { event: 'joined', room };
-  }
-
-  @SubscribeMessage('leave')
-  handleLeave(
-    @MessageBody() room: string,
-    @ConnectedSocket() client: Socket
-  ) {
-    client.leave(room);
-    return { event: 'left', room };
-  }
-}
-```
-
----
-
-## AI 应用实战
-
-### AI API 代理
-
-```typescript
-// ai.service.ts
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { OpenAI } from 'openai';
-
-@Injectable()
-export class AIService {
-  private openai: OpenAI;
-
-  constructor(private configService: ConfigService) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get('OPENAI_API_KEY')
-    });
-  }
-
-  async chat(messages: Array<{ role: string; content: string }>) {
-    const completion = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages
-    });
-
-    return {
-      content: completion.choices[0].message.content,
-      usage: completion.usage
-    };
-  }
-
-  async streamChat(messages: Array<{ role: string; content: string }>) {
-    return this.openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages,
-      stream: true
-    });
-  }
-}
-```
-
-### AI 控制器
-
-```typescript
-// ai.controller.ts
-import {
-  Controller,
-  Post,
-  Body,
-  Sse,
-  Header
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { AIService } from './ai.service';
-import { CreateChatCompletionDto } from './dto';
-
-@Controller('ai')
-export class AIController {
-  constructor(private readonly aiService: AIService) {}
-
-  @Post('chat')
-  async chat(@Body() dto: CreateChatCompletionDto) {
-    return this.aiService.chat(dto.messages);
-  }
-
-  @Post('chat/stream')
-  async streamChat(@Body() dto: CreateChatCompletionDto) {
-    const stream = await this.aiService.streamChat(dto.messages);
-
-    return new ReadableStream({
-      async start(controller) {
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content || '';
-          if (text) {
-            controller.enqueue(`data: ${JSON.stringify({ text })}\n\n`);
-          }
-        }
-        controller.close();
-      }
-    });
-  }
-}
-```
-
----
-
-## 选型建议
-
-### 何时选择 NestJS
-
-| 场景 | 推荐理由 |
-|------|---------|
-| **企业级应用** | 模块化架构，依赖注入 |
-| **大型 API** | TypeScript 原生，强类型 |
-| **微服务架构** | 内置微服务支持 |
-| **GraphQL API** | 原生 GraphQL 集成 |
-| **团队有 Angular 经验** | 风格相似 |
-| **需要测试支持** | 完善的测试工具 |
-
-### 何时考虑其他方案
-
-| 场景 | 推荐框架 | 原因 |
-|------|---------|------|
-| **简单 REST API** | Express / Fastify | 轻量，灵活 |
-| **高性能 API** | Fastify | 极快速度 |
-| **Serverless** | Express / 框架无关 | 冷启动优化 |
-| **小型项目** | Express | 学习成本低 |
-| **实时应用** | Socket.io / 原生 | 更底层 |
-
-> [!TIP]
-> NestJS 的模块化架构和依赖注入系统非常适合构建中大型企业应用。如果项目需要长期维护和团队协作，NestJS 是很好的选择。
-
----
-
-## 完整安装与项目初始化
-
-### 环境要求
-
-```bash
-# Node.js 版本要求
-node --version  # >= 18.0.0 (推荐 20.x LTS)
-
-# npm 版本
-npm --version   # >= 9.0.0
-
-# NestJS CLI
-npm install -g @nestjs/cli
-```
-
-### 项目创建
-
-```bash
-# 创建新项目
-nest new project-name
-
-# 或者使用 yarn
-nest new project-name --package-manager yarn
-
-# 指定包管理器
-nest new project-name --package-manager pnpm
-
-# 跳过安装
-nest new project-name --skip-git
-```
-
-### 手动初始化
-
-```bash
-mkdir my-nestjs-api && cd my-nestjs-api
-
-# 初始化 npm
-npm init -y
-
-# 安装 NestJS 核心依赖
-npm install @nestjs/common @nestjs/core @nestjs/platform-express @nestjs/config
-npm install @nestjs/typeorm @nestjs/passport @nestjs/jwt @nestjs/schedule
-npm install @nestjs/terminus @nestjs/swagger @nestjs/graphql @nestjs/apollo
-npm install reflect-metadata rxjs
-
-# 开发依赖
-npm install --save-dev @nestjs/cli @nestjs/schematics @nestjs/testing
-npm install typescript @types/node ts-node
-
-# 初始化 TypeScript
-npx tsc --init
-```
-
-### TypeScript 配置
-
-```json
-// tsconfig.json
-{
-  "compilerOptions": {
-    "module": "commonjs",
-    "declaration": true,
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "ES2021",
-    "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "incremental": true,
-    "skipLibCheck": true,
-    "strictNullChecks": true,
-    "noImplicitAny": true,
-    "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-```
-
-### 项目结构
-
-```
-my-nestjs-api/
-├── src/
-│   ├── main.ts                    # 应用入口
-│   ├── app.module.ts              # 根模块
-│   ├── app.controller.ts
-│   ├── app.service.ts
-│   ├── app.config.ts             # 配置
-│   ├── common/
-│   │   ├── decorators/
-│   │   │   ├── current-user.decorator.ts
-│   │   │   ├── roles.decorator.ts
-│   │   │   └── public.decorator.ts
-│   │   ├── guards/
-│   │   │   ├── auth.guard.ts
-│   │   │   ├── roles.guard.ts
-│   │   │   └── throttle.guard.ts
-│   │   ├── interceptors/
-│   │   │   ├── logging.interceptor.ts
-│   │   │   ├── transform.interceptor.ts
-│   │   │   └── exception.interceptor.ts
-│   │   ├── filters/
-│   │   │   └── http-exception.filter.ts
-│   │   ├── pipes/
-│   │   │   ├── validation.pipe.ts
-│   │   │   └── parse-int.pipe.ts
-│   │   ├── dto/
-│   │   │   └── pagination.dto.ts
-│   │   └── interfaces/
-│   │       └── pagination.interface.ts
-│   ├── config/
-│   │   ├── configuration.ts
-│   │   ├── database.config.ts
-│   │   └── redis.config.ts
-│   ├── modules/
-│   │   ├── auth/
-│   │   │   ├── auth.module.ts
-│   │   │   ├── auth.controller.ts
-│   │   │   ├── auth.service.ts
-│   │   │   ├── strategies/
-│   │   │   │   ├── jwt.strategy.ts
-│   │   │   │   └── local.strategy.ts
-│   │   │   ├── guards/
-│   │   │   └── dto/
-│   │   ├── users/
-│   │   │   ├── users.module.ts
-│   │   │   ├── users.controller.ts
-│   │   │   ├── users.service.ts
-│   │   │   ├── entities/
-│   │   │   │   └── user.entity.ts
-│   │   │   └── dto/
-│   │   ├── posts/
-│   │   │   └── ...
-│   │   └── health/
-│   │       └── ...
-│   ├── database/
-│   │   ├── database.module.ts
-│   │   └── migrations/
-│   └── redis/
-│       └── redis.module.ts
-├── test/
-│   ├── jest-e2e.json
-│   └── *.spec.ts
-├── prisma/
-│   └── schema.prisma
-├── .env
-├── .env.example
-├── .gitignore
-├── tsconfig.json
-├── nest-cli.json
-├── package.json
-└── Dockerfile
-```
-
-### nest-cli.json 配置
-
-```json
-{
-  "$schema": "https://json.schemastore.org/nest-cli",
-  "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
-  "compilerOptions": {
-    "deleteOutDir": true,
-    "assets": ["**/*.graphql"],
-    "watchAssets": true,
-    "webpack": true,
-    "tsConfigPath": "tsconfig.build.json"
-  },
-  "generateOptions": {
-    "spec": {
-      "default": true,
-      "grouping": "folders"
-    }
-  }
-}
-```
-
-### package.json scripts
-
-```json
-{
-  "name": "my-nestjs-api",
-  "version": "1.0.0",
-  "description": "NestJS REST API",
-  "author": "",
-  "private": true,
-  "license": "MIT",
-  "scripts": {
-    "build": "nest build",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:watch": "jest --config ./test/jest-e2e.json --watch",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
-  },
-  "dependencies": {
-    "@nestjs/common": "^10.3.0",
-    "@nestjs/core": "^10.3.0",
-    "@nestjs/platform-express": "^10.3.0",
-    "@nestjs/config": "^3.1.0",
-    "@nestjs/typeorm": "^10.0.1",
-    "@nestjs/passport": "^10.0.3",
-    "@nestjs/jwt": "^10.2.0",
-    "@nestjs/bull": "^10.0.1",
-    "@nestjs/schedule": "^4.0.0",
-    "@nestjs/swagger": "^7.2.0",
-    "@nestjs/graphql": "^12.0.0",
-    "@nestjs/apollo": "^12.0.0",
-    "@nestjs/terminus": "^10.2.0",
-    "typeorm": "^0.3.19",
-    "pg": "^8.11.3",
-    "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1",
-    "passport-local": "^1.0.0",
-    "bcryptjs": "^2.4.3",
-    "class-validator": "^0.14.0",
-    "class-transformer": "^0.5.1",
-    "reflect-metadata": "^0.2.1",
-    "rxjs": "^7.8.1",
-    "ioredis": "^5.3.2",
-    "bull": "^4.12.0",
-    "@apollo/server": "^4.10.0",
-    "graphql": "^16.8.1",
-    "@graphql-tools/schema": "^10.0.0",
-    "pino": "^8.17.0",
-    "pino-pretty": "^10.3.0"
-  },
-  "devDependencies": {
-    "@nestjs/cli": "^10.3.0",
-    "@nestjs/schematics": "^10.1.0",
-    "@nestjs/testing": "^10.3.0",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.10.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/passport-jwt": "^4.0.0",
-    "@types/passport-local": "^1.0.38",
-    "typescript": "^5.3.2",
-    "ts-node": "^10.9.2",
-    "jest": "^29.7.0",
-    "@types/jest": "^29.5.11",
-    "ts-jest": "^29.1.1",
-    "eslint": "^8.55.0",
-    "prisma": "^6.0.0"
-  }
-}
-```
-
----
-
-## 数据库集成
-
-### TypeORM 配置
-
-```typescript
-// src/config/database.config.ts
-import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-
-export const databaseConfig = (): TypeOrmModuleOptions => ({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 5432,
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'mydb',
-  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-  subscribers: [__dirname + '/../**/*.subscriber{.ts,.js}'],
-  synchronize: process.env.NODE_ENV !== 'production',
-  logging: process.env.NODE_ENV === 'development',
-  logger: 'advanced-console',
-  ssl: process.env.NODE_ENV === 'production',
-  extra: {
-    ssl:
-      process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : undefined,
-    connectionLimit: 10,
-  },
-  autoLoadEntities: true,
-  keepConnectionAlive: true,
-});
-```
-
-### Prisma 集成
-
-```bash
-npm install prisma @prisma/client
-npx prisma init
-```
-
-```prisma
-// prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  firstName String?
-  lastName  String?
-  avatar    String?
-  role      Role     @default(USER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lastLoginAt DateTime?
-
-  posts    Post[]
-  comments Comment[]
-
-  @@index([email])
-  @@index([username])
-}
-
-enum Role {
-  USER
-  ADMIN
-  MODERATOR
-}
-
-model Post {
-  id          String    @id @default(uuid())
-  title       String
-  slug        String    @unique
-  content     String
-  excerpt     String?
-  published   Boolean   @default(false)
-  publishedAt DateTime?
-  viewCount   Int       @default(0)
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  comments Comment[]
-
-  @@index([slug])
-  @@index([authorId])
-  @@index([published])
-}
-
-model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([postId])
-  @@index([authorId])
-}
-```
-
-```typescript
-// src/prisma/prisma.service.ts
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
-
-@Injectable()
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
-  constructor() {
-    super({
-      log:
-        process.env.NODE_ENV === 'development'
-          ? ['query', 'info', 'warn', 'error']
-          : ['error'],
-    });
-  }
-
-  async onModuleInit() {
-    await this.$connect();
-  }
-
-  async onModuleDestroy() {
-    await this.$disconnect();
-  }
-}
-```
-
-```typescript
-// src/prisma/prisma.module.ts
-import { Module, Global } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
-
-@Global()
-@Module({
-  providers: [PrismaService],
-  exports: [PrismaService],
-})
-export class PrismaModule {}
-```
-
----
-
-## 认证授权
-
-### JWT 认证模块
-
-```typescript
-// src/modules/auth/dto/auth.dto.ts
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-
-export class RegisterDto {
-  @ApiProperty({ example: 'user@example.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiProperty({ example: 'username123' })
-  @IsString()
-  @MinLength(3)
-  username: string;
-
-  @ApiProperty({ example: 'Password123!' })
-  @IsString()
-  @MinLength(8)
-  password: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  firstName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  lastName?: string;
-}
-
-export class LoginDto {
-  @ApiProperty({ example: 'user@example.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiProperty({ example: 'Password123!' })
-  @IsString()
-  password: string;
-}
-
-export class RefreshTokenDto {
-  @ApiProperty()
-  @IsString()
-  refreshToken: string;
-}
-```
-
-```typescript
-// src/modules/auth/strategies/jwt.strategy.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-
-export interface JwtPayload {
-  sub: string;
-  email: string;
-  role: string;
-}
-
-@Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    private configService: ConfigService,
-    private prisma: PrismaService,
-  ) {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
-    });
-  }
-
-  async validate(payload: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub, isActive: true },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found or inactive');
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      username: user.username,
-    };
-  }
-}
-```
-
-```typescript
-// src/modules/auth/guards/jwt-auth.guard.ts
-import { Injectable, ExecutionContext } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
-
-@Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
-    super();
-  }
-
-  canActivate(context: ExecutionContext) {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (isPublic) {
-      return true;
-    }
-
-    return super.canActivate(context);
-  }
-}
-```
-
-```typescript
-// src/modules/auth/guards/roles.guard.ts
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../../../common/decorators/roles.decorator';
-import { Role } from '../../../prisma/client';
-
-@Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (!requiredRoles) {
-      return true;
-    }
-
-    const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.some((role) => user.role === role);
-  }
-}
-```
-
-```typescript
-// src/modules/auth/auth.service.ts
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
-
-@Injectable()
-export class AuthService {
-  constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-  ) {}
-
-  async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: dto.email }, { username: dto.username }],
-      },
-    });
-
-    if (existingUser) {
-      throw new ConflictException(
-        existingUser.email === dto.email
-          ? 'Email already registered'
-          : 'Username already taken',
+  transform(value: string, metadata: ArgumentMetadata): T {
+    const enumValues = Object.values(this.enumType);
+    const enumKey = enumValues.find(v => v === value || v === +value);
+
+    if (enumKey === undefined) {
+      throw new BadRequestException(
+        this.errorMessage || `无效的枚举值: ${value}`,
       );
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 12);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        username: dto.username,
-        password: hashedPassword,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-      },
-    });
-
-    const tokens = await this.generateTokens(user);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-      },
-      ...tokens,
-    };
+    return enumKey as T;
   }
+}
 
-  async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+// 自定义管道：模糊搜索转换
+@Injectable()
+export class SearchPipe implements PipeTransform<string, string[]> {
+  transform(value: string, metadata: ArgumentMetadata): string[] {
+    if (!value) {
+      return [];
     }
-
-    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    const tokens = await this.generateTokens(user);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-      },
-      ...tokens,
-    };
-  }
-
-  async refreshToken(refreshToken: string) {
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
-
-      if (payload.type !== 'refresh') {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub, isActive: true },
-      });
-
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      return this.generateTokens(user);
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  private async generateTokens(user: any) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
-
-    const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET,
-      expiresIn: '15m',
-    });
-
-    const refreshToken = this.jwtService.sign(
-      { ...payload, type: 'refresh' },
-      {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: '7d',
-      },
-    );
-
-    return { accessToken, refreshToken };
+    return value.split(',').map(v => v.trim().toLowerCase());
   }
 }
-```
 
-```typescript
-// src/modules/auth/auth.controller.ts
-import {
-  Controller,
-  Post,
-  Body,
-  HttpCode,
-  HttpStatus,
-  Get,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-
-@ApiTags('auth')
-@Controller('auth')
-export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  @ApiResponse({ status: 409, description: 'User already exists' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
-  }
-
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login user' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
-  }
-
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token' })
-  @ApiResponse({ status: 200, description: 'Token refreshed' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto.refreshToken);
-  }
-
-  @Get('me')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user' })
-  @ApiResponse({ status: 200, description: 'Current user data' })
-  async getProfile(@CurrentUser() user: any) {
-    return user;
-  }
-}
-```
-
-```typescript
-// src/modules/auth/auth.module.ts
-import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { PrismaModule } from '../../prisma/prisma.module';
-
-@Module({
-  imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
-      }),
-      inject: [ConfigService],
-    }),
-    PrismaModule,
-  ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtAuthGuard, RolesGuard],
-})
-export class AuthModule {}
-```
-
----
-
-## 常见陷阱与最佳实践
-
-### 陷阱 1：循环依赖
-
-```typescript
-// ❌ 错误：UserModule 和 PostModule 循环依赖
-// user.module.ts
-@Module({
-  imports: [PostModule], // 错误
-})
-export class UserModule {}
-
-// post.module.ts
-@Module({
-  imports: [UserModule], // 错误
-})
-export class PostModule {}
-
-// ✅ 正确：使用 forwardRef
-@Module({
-  imports: [forwardRef(() => PostModule)],
-})
-export class UserModule {}
-```
-
-### 陷阱 2：未正确处理异步
-
-```typescript
-// ❌ 错误：Controller 直接调用异步方法
-@Post()
-async create(@Body() dto: CreateDto) {
-  return this.usersService.create(dto); // 忘记 await
-}
-
-// ✅ 正确
-@Post()
-async create(@Body() dto: CreateDto) {
-  return await this.usersService.create(dto);
-}
-```
-
-### 陷阱 3：未验证输入
-
-```typescript
-// ❌ 错误：没有使用 DTO 和 ValidationPipe
-@Post()
-async create(@Body() dto: any) { // 没有类型验证
-  return this.usersService.create(dto);
-}
-
-// ✅ 正确
-@Post()
-async create(@Body() dto: CreateUserDto) {
-  return await this.usersService.create(dto);
-}
-
-// 在 main.ts 中启用全局验证
+// ValidationPipe 的高级配置
 app.useGlobalPipes(
   new ValidationPipe({
-    whitelist: true,
-    transform: true,
-    forbidNonWhitelisted: true,
+    whitelist: true,           // 移除不在 DTO 中的属性
+    forbidNonWhitelisted: true, // 拒绝额外属性
+    transform: true,            // 自动类型转换
+    transformOptions: {
+      enableImplicitConversion: true, // 允许隐式类型转换
+    },
+    errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY, // 422 错误码
+    stopAtFirstError: false,   // 显示所有错误而非只显示第一个
   }),
 );
+
+// 使用管道
+@Controller('posts')
+export class PostsController {
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string, // 必须是有效 UUID
+  ) { /* ... */ }
+
+  @Get()
+  async findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('status', new DefaultValuePipe('published'), 
+            new ParseEnumPipe(PostStatus)) status: PostStatus,
+    @Query('tags', SearchPipe) tags: string[],
+  ) { /* ... */ }
+}
 ```
-
-### 最佳实践清单
-
-1. **模块化设计**：每个功能模块独立，使用 `forwardRef` 避免循环依赖。
-2. **DTO 验证**：使用 class-validator 和 class-transformer。
-3. **依赖注入**：使用构造函数注入，优先使用 `inject` 装饰器。
-4. **异常处理**：使用内置 HttpException 或自定义异常。
-5. **异步处理**：始终使用 async/await。
-6. **数据库连接**：在 OnModuleInit 中连接，OnModuleDestroy 中断开。
-7. **配置管理**：使用 ConfigModule 和 @ConfigService。
-8. **日志记录**：使用内置 Logger 或 Pino。
-9. **测试覆盖**：使用 Jest 进行单元测试和 E2E 测试。
-10. **文档生成**：使用 @nestjs/swagger 生成 OpenAPI 文档。
 
 ---
 
-## 与其他框架对比
+## TypeORM 和 Prisma 集成
 
-### NestJS vs Express
+### TypeORM 集成
 
-| 特性 | NestJS | Express |
-|------|--------|---------|
-| **架构** | 模块化，依赖注入 | 扁平化 |
-| **学习曲线** | 较陡 | 平缓 |
-| **TypeScript** | 原生支持 | 需要配置 |
-| **装饰器** | 核心特性 | 可选 |
-| **测试** | 完善的测试工具 | 需要配置 |
-| **适用场景** | 企业级应用 | 轻量级 API |
-
-### NestJS vs Fastify
-
-| 特性 | NestJS | Fastify |
-|------|--------|---------|
-| **性能** | 高 | 极高 |
-| **架构** | 模块化 | 扁平化 |
-| **依赖注入** | 原生支持 | 插件实现 |
-| **学习曲线** | 较陡 | 中等 |
-| **适用场景** | 企业级应用 | 高性能 API |
-
-### NestJS vs Spring Boot
-
-| 特性 | NestJS | Spring Boot |
-|------|--------|-------------|
-| **语言** | TypeScript/JavaScript | Java/Kotlin |
-| **依赖注入** | 装饰器 | 注解 |
-| **ORM** | TypeORM/Prisma | JPA/Hibernate |
-| **性能** | 高 | 高 |
-| **生态** | 增长中 | 成熟庞大 |
-| **适用场景** | Node.js 团队 | Java 团队 |
-
----
-
-## 常见问题与解决方案
-
-### 问题1：模块循环依赖
-
-**问题描述**：NestJS 中两个模块相互导入导致循环依赖错误。
+TypeORM 是 NestJS 生态中最成熟的 ORM 之一，NestJS 官方提供了 `@nestjs/typeorm` 包来简化集成。
 
 ```typescript
-// ❌ 错误示例
-// cats.module.ts
+// app.module.ts - TypeORM 配置
 @Module({
-  imports: [DogsModule], // 错误：循环依赖
-  controllers: [CatsController],
-  providers: [CatsService]
-})
-export class CatsModule {}
-
-// dogs.module.ts
-@Module({
-  imports: [CatsModule], // 错误：循环依赖
-  controllers: [DogsController],
-  providers: [DogsService]
-})
-export class DogsModule {}
-```
-
-**解决方案**：使用 `forwardRef` 或重构模块结构。
-
-```typescript
-// ✅ 解决方案1：使用 forwardRef
-@Module({
-  imports: [forwardRef(() => DogsModule)],
-  controllers: [CatsController],
-  providers: [CatsService]
-})
-export class CatsModule {}
-
-// ✅ 解决方案2：提取共享模块
-@Module({
-  exports: [SharedService] // 只导出需要共享的服务
-})
-export class SharedModule {}
-
-// ✅ 解决方案3：使用事件而非直接依赖
-@Injectable()
-class CatsService {
-  constructor(private readonly eventEmitter: EventEmitter2) {}
-  
-  async createCat(name: string) {
-    const cat = await this.catRepo.create({ name });
-    this.eventEmitter.emit('cat.created', cat); // 发布事件而非直接调用
-    return cat;
-  }
-}
-
-@Injectable()
-class DogsModule {
-  constructor(private readonly eventEmitter: EventEmitter2) {
-    this.eventEmitter.on('cat.created', (cat) => this.onCatCreated(cat));
-  }
-}
-```
-
-### 问题2：依赖注入失败
-
-**问题描述**：`Nest can't resolve dependencies` 错误。
-
-```typescript
-// ❌ 错误：抽象类未正确注册
-@Injectable()
-class MyService {
-  constructor(private readonly repo: Repository<User>) {} // Repository 是抽象类
-}
-```
-
-**解决方案**：使用 `@Inject` 装饰器和自定义 provider。
-
-```typescript
-// ✅ 解决方案：定义 provider token
-export const USER_REPOSITORY = 'USER_REPOSITORY';
-
-@Injectable()
-class MyService {
-  constructor(
-    @Inject(USER_REPOSITORY)
-    private readonly repo: Repository<User>
-  ) {}
-}
-
-// 在模块中注册
-@Module({
-  providers: [
-    {
-      provide: USER_REPOSITORY,
-      useClass: TypeOrmRepository // 实际的实现类
-    }
-  ]
-})
-export class UsersModule {}
-```
-
-### 问题3：守卫不生效
-
-**问题描述**：自定义守卫没有按预期执行。
-
-```typescript
-// ❌ 错误：守卫未在正确位置应用
-@Injectable()
-export class AuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    // 守卫逻辑
-    return true;
-  }
-}
-
-@Controller('users')
-@UseGuards(AuthGuard) // 守卫应用在控制器级别
-export class UsersController {
-  @Get('public') // 这个路由也被守卫保护了
-  getPublic() {}
-}
-```
-
-**解决方案**：使用 `@Public` 装饰器标记公开路由。
-
-```typescript
-// 定义 Public 装饰器
-export const IS_PUBLIC_KEY = 'is_public';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
-
-// 创建可以跳过守卫的 AuthGuard
-@Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
-    super();
-  }
-
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass()
-    ]);
-    
-    if (isPublic) {
-      return true;
-    }
-    
-    return super.canActivate(context);
-  }
-}
-
-// 使用
-@Controller('users')
-@UseGuards(JwtAuthGuard)
-export class UsersController {
-  @Public() // 这个路由不需要认证
-  @Get('public')
-  getPublic() {}
-  
-  @Get('protected') // 这个路由需要认证
-  getProtected() {}
-}
-```
-
-### 问题4：请求体验证失败
-
-**问题描述**：`class-validator` 装饰器不生效。
-
-```typescript
-// ❌ 错误：未启用全局管道
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  // 缺少 ValidationPipe
-  await app.listen(3000);
-}
-
-// DTO 定义
-export class CreateUserDto {
-  @IsEmail()
-  email: string;
-  
-  @IsString()
-  @MinLength(8)
-  password: string;
-}
-```
-
-**解决方案**：启用全局 ValidationPipe。
-
-```typescript
-// ✅ 正确配置
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  // 全局验证管道
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,           // 移除不在 DTO 中的属性
-      forbidNonWhitelisted: true, // 拒绝额外属性
-      transform: true,          // 自动类型转换
-      transformOptions: {
-        enableImplicitConversion: true
-      }
-    })
-  );
-  
-  await app.listen(3000);
-}
-```
-
-### 问题5：跨域配置问题
-
-**问题描述**：浏览器报错 `CORS policy blocked`。
-
-```typescript
-// ❌ 错误：配置不完整
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.enableCors(); // 默认配置可能不够
-  await app.listen(3000);
-}
-```
-
-**解决方案**：配置完整的 CORS 选项。
-
-```typescript
-// ✅ 正确配置
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Request-Id'],
-    credentials: true,
-    maxAge: 86400
-  });
-  
-  await app.listen(3000);
-}
-```
-
-### 问题6：数据库连接池耗尽
-
-**问题描述**：高并发时出现 `connection timeout` 错误。
-
-```typescript
-// ❌ 错误：默认连接池配置
-TypeOrmModule.forRoot({
-  type: 'postgres',
-  host: 'localhost',
-  port: 5432,
-  username: 'user',
-  password: 'password',
-  database: 'db'
-  // 缺少连接池配置
-})
-```
-
-**解决方案**：配置连接池参数。
-
-```typescript
-// ✅ 正确配置
-TypeOrmModule.forRoot({
-  type: 'postgres',
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT, 10),
-  username: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  // 连接池配置
-  extra: {
-    max: 20,              // 最大连接数
-    min: 5,               // 最小连接数
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-    acquireTimeoutMillis: 10000
-  },
-  // 连接池复用
-  keepConnectionAlive: true,
-  // 重连配置
-  retryAttempts: 3,
-  retryDelay: 3000
-})
-```
-
-### 问题7：热重载不工作
-
-**问题描述**：修改代码后应用不自动重启。
-
-```typescript
-// ❌ 错误：未正确配置 watch 模式
-// nest-cli.json
-{
-  "$schema": "...",
-  "sourceRoot": "src"
-  // 缺少 watchOptions
-}
-```
-
-**解决方案**：配置完整的 watch 选项。
-
-```typescript
-// ✅ 正确配置 nest-cli.json
-{
-  "$schema": "https://json.schemastore.org/nest-cli",
-  "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
-  "compilerOptions": {
-    "deleteOutDir": true,
-    "assets": ["**/*.graphql"],
-    "watchOptions": {
-      "watchman": {
-        "lucene": true
-      }
-    },
-    "webpack": false, // 使用 NestJS 原生编译而非 webpack
-    "tsConfigPath": "tsconfig.build.json"
-  }
-}
-
-// 或者使用 --watch 参数启动
-// nest start --watch
-// 或
-// nest start --watch --preserveWatchOutput
-```
-
-### 问题8：GraphQL 解析错误
-
-**问题描述**：GraphQL Playground 无法加载或查询报错。
-
-```typescript
-// ❌ 错误：缺少必要配置
-GraphQLModule.forRoot({
-  autoSchemaFile: true,
-  playground: true
-  // 缺少 subscriptions 配置
-})
-```
-
-**解决方案**：配置完整的 GraphQL 选项。
-
-```typescript
-// ✅ 正确配置
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-  sortSchema: true,
-  playground: process.env.NODE_ENV !== 'production',
-  introspection: true,
-  subscriptions: {
-    'graphql-ws': true,
-    'subscriptions-transport-ws': true
-  },
-  context: ({ req, connection }) => {
-    if (connection) {
-      return { req: connection.context };
-    }
-    return { req };
-  },
-  formatError: (error) => {
-    // 生产环境隐藏详细错误
-    if (process.env.NODE_ENV === 'production') {
-      return new GraphQLError('Internal server error');
-    }
-    return error;
-  }
-})
-```
-
-### 问题9：JWT 令牌失效处理
-
-**问题描述**：令牌过期时前端没有正确处理。
-
-```typescript
-// ❌ 错误：未处理 401 响应
-@Injectable()
-export class AuthService {
-  constructor(private http: HttpClient) {}
-  
-  async getData() {
-    return this.http.get('/api/data').toPromise(); // 未处理 401
-  }
-}
-```
-
-**解决方案**：实现令牌刷新机制。
-
-```typescript
-// ✅ 解决方案：使用拦截器处理令牌刷新
-@Injectable()
-export class TokenInterceptor implements HttpInterceptor {
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
-
-  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    return next.handle(req).pipe(
-      catchError((error) => {
-        if (error.status === 401 && !req.url.includes('/auth/refresh')) {
-          return this.handle401Error(req, next);
-        }
-        return throwError(() => error);
-      })
-    );
-  }
-
-  private handle401Error(req: HttpRequest<any>, next: HttpHandler) {
-    return this.authService.refreshToken().pipe(
-      tap((tokens) => {
-        this.authService.setTokens(tokens);
+  imports: [
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get('DB_HOST'),
+        port: config.get('DB_PORT'),
+        username: config.get('DB_USERNAME'),
+        password: config.get('DB_PASSWORD'),
+        database: config.get('DB_NAME'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        synchronize: config.get('NODE_ENV') !== 'production', // 生产环境禁用
+        logging: config.get('NODE_ENV') === 'development',
+        poolSize: 20,
+        ssl: config.get('NODE_ENV') === 'production',
       }),
-      switchMap(() => {
-        req = req.clone({
-          setHeaders: {
-            Authorization: `Bearer ${this.authService.getAccessToken()}`
-          }
-        });
-        return next.handle(req);
-      }),
-      catchError(() => {
-        this.authService.logout();
-        this.router.navigate(['/login']);
-        return throwError(() => new Error('Token refresh failed'));
-      })
-    );
-  }
-}
-```
+    }),
+  ],
+})
+export class AppModule {}
 
-### 问题10：内存泄漏排查
-
-**问题描述**：应用运行一段时间后内存持续增长。
-
-**排查步骤**：
-
-```bash
-# 1. 使用 Node.js 内存分析
-node --inspect dist/main.js
-
-# 2. 使用 heapdump
-npm install heapdump
-import * as heapdump from 'heapdump';
-
-// 定期生成快照
-setInterval(() => {
-  heapdump.writeSnapshot('./' + Date.now() + '.heapsnapshot');
-}, 60000); // 每分钟
-```
-
-**常见原因和解决方案**：
-
-```typescript
-// 原因1：事件监听器未清理
-@Injectable()
-export class MyService implements OnDestroy {
-  private subscriptions: Subscription[] = [];
-  
-  ngOnInit() {
-    // ❌ 错误：未保存订阅
-    this.http.get('/api/data').subscribe(data => {});
-    
-    // ✅ 正确：保存订阅并在销毁时取消
-    this.subscriptions.push(
-      this.http.get('/api/data').subscribe(data => {})
-    );
-  }
-  
-  ngOnDestroy() {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-  }
-}
-
-// 原因2：定时器未清除
-@Injectable()
-export class MyService implements OnDestroy {
-  private timer: NodeJS.Timeout;
-  
-  ngOnInit() {
-    // ❌ 错误：定时器未清除
-    this.timer = setInterval(() => this.doSomething(), 1000);
-  }
-  
-  ngOnDestroy() {
-    // ✅ 正确：清除定时器
-    clearInterval(this.timer);
-  }
-}
-
-// 原因3：缓存无限增长
-@Injectable()
-export class MyService {
-  private cache = new Map<string, any>(); // 可能无限增长
-  
-  getData(key: string) {
-    if (!this.cache.has(key)) {
-      this.cache.set(key, this.fetchData(key));
-    }
-    return this.cache.get(key);
-  }
-}
-
-// ✅ 解决方案：使用 LRU 缓存
-import { LRUCache } from 'lru-cache';
-
-@Injectable()
-export class MyService {
-  private cache = new LRUCache<string, any>({
-    max: 500,           // 最大缓存条目数
-    maxSize: 5000,      // 最大缓存大小（字节）
-    ttl: 1000 * 60 * 5 // 5分钟过期
-  });
-  
-  getData(key: string) {
-    if (!this.cache.has(key)) {
-      this.cache.set(key, this.fetchData(key));
-    }
-    return this.cache.get(key);
-  }
-}
-```
-
----
-
-## 实战项目示例
-
-### 项目一：用户认证系统
-
-**项目结构**：
-
-```
-src/
-├── auth/
-│   ├── auth.module.ts
-│   ├── auth.controller.ts
-│   ├── auth.service.ts
-│   ├── strategies/
-│   │   ├── jwt.strategy.ts
-│   │   └── local.strategy.ts
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts
-│   │   └── roles.guard.ts
-│   └── dto/
-│       ├── login.dto.ts
-│       └── register.dto.ts
-├── users/
-│   ├── users.module.ts
-│   ├── users.service.ts
-│   └── entities/
-│       └── user.entity.ts
-└── common/
-    └── decorators/
-        ├── current-user.decorator.ts
-        ├── roles.decorator.ts
-        └── public.decorator.ts
-```
-
-**完整实现**：
-
-```typescript
-// src/users/entities/user.entity.ts
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn
-} from 'typeorm';
-
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-  MODERATOR = 'moderator'
-}
-
+// entities/user.entity.ts - 实体定义
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -2588,885 +779,602 @@ export class User {
   @Column({ nullable: true })
   avatar?: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.USER
-  })
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
   @Column({ default: true })
   isActive: boolean;
-
-  @Column({ nullable: true })
-  lastLoginAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => Post, (post) => post.author)
+  posts: Post[];
+
+  @OneToMany(() => Comment, (comment) => comment.author)
+  comments: Comment[];
 }
 ```
 
-```typescript
-// src/auth/dto/register.dto.ts
-import { IsEmail, IsString, MinLength, MaxLength, Matches, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+### Prisma 集成
 
-export class RegisterDto {
-  @ApiProperty({ example: 'user@example.com' })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
-  email: string;
-
-  @ApiProperty({ example: 'johndoe' })
-  @IsString()
-  @MinLength(3, { message: 'Username must be at least 3 characters' })
-  @MaxLength(20, { message: 'Username cannot exceed 20 characters' })
-  @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: 'Username can only contain letters, numbers, and underscores'
-  })
-  username: string;
-
-  @ApiProperty({ example: 'Password123!' })
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
-  @MaxLength(50, { message: 'Password cannot exceed 50 characters' })
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
-  })
-  password: string;
-
-  @ApiPropertyOptional({ example: 'John' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  firstName?: string;
-
-  @ApiPropertyOptional({ example: 'Doe' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  lastName?: string;
-}
-```
+Prisma 是近年来崛起的新一代 ORM，以类型安全和直观的 API著称。
 
 ```typescript
-// src/auth/auth.service.ts
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcryptjs';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dto';
-import { User, UserRole } from '../users/entities/user.entity';
-
-export interface TokenPayload {
-  sub: string;
-  email: string;
-  role: UserRole;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
-
+// prisma.service.ts - Prisma 服务
 @Injectable()
-export class AuthService {
-  private readonly saltRounds = 12;
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
-  ) {}
-
-  async register(dto: RegisterDto): Promise<{
-    user: Partial<User>;
-    tokens: AuthTokens;
-  }> {
-    // 检查邮箱是否已存在
-    const existingByEmail = await this.prisma.user.findUnique({
-      where: { email: dto.email }
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy {
+  constructor() {
+    super({
+      log: process.env.NODE_ENV === 'development'
+        ? ['query', 'info', 'warn', 'error']
+        : ['error'],
     });
+  }
 
-    if (existingByEmail) {
-      throw new ConflictException('Email already registered');
-    }
+  async onModuleInit() {
+    await this.$connect();
+  }
 
-    // 检查用户名是否已存在
-    const existingByUsername = await this.prisma.user.findUnique({
-      where: { username: dto.username }
-    });
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
+}
 
-    if (existingByUsername) {
-      throw new ConflictException('Username already taken');
-    }
+// prisma.module.ts - Prisma 模块
+@Global()
+@Module({
+  providers: [PrismaService],
+  exports: [PrismaService],
+})
+export class PrismaModule {}
 
-    // 密码哈希
-    const hashedPassword = await bcrypt.hash(dto.password, this.saltRounds);
+// 在服务中使用 Prisma
+@Injectable()
+export class UsersService {
+  constructor(private readonly prisma: PrismaService) {}
 
-    // 创建用户
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        username: dto.username,
-        password: hashedPassword,
-        firstName: dto.firstName,
-        lastName: dto.lastName
-      }
-    });
+  async findAll(query: PaginationQueryDto) {
+    const { page = 1, limit = 20, search } = query;
 
-    // 生成令牌
-    const tokens = await this.generateTokens(user);
+    const where = search ? {
+      OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
+      ],
+    } : {};
+
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role
-      },
-      tokens
+      data: users,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
-  async login(dto: LoginDto): Promise<{
-    user: Partial<User>;
-    tokens: AuthTokens;
-  }> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email }
+  async create(dto: CreateUserDto) {
+    const existing = await this.prisma.user.findFirst({
+      where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (existing) {
+      const field = existing.email === dto.email ? '邮箱' : '用户名';
+      throw new ConflictException(`${field}已被注册`);
     }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is disabled');
+    return this.prisma.user.create({
+      data: {
+        ...dto,
+        password: await bcrypt.hash(dto.password, 12),
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  }
+}
+```
+
+---
+
+## 认证授权：JWT 与 Passport
+
+### JWT 认证实现
+
+JWT（JSON Web Token）是现代 Web 应用中最常用的无状态认证方案。NestJS 通过 `@nestjs/jwt` 和 `@nestjs/passport` 提供了完整的认证支持。
+
+```typescript
+// auth.service.ts - 认证服务
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findFirst({
+      where: { OR: [{ email: dto.email }, { username: dto.username }] },
+    });
+
+    if (existing) {
+      throw new ConflictException('用户已存在');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
+
+    const user = await this.prisma.user.create({
+      data: { ...dto, password: hashedPassword },
+      select: { id: true, email: true, username: true, role: true },
+    });
+
+    const tokens = await this.generateTokens(user);
+
+    return { user, ...tokens };
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('用户名或密码错误');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('用户名或密码错误');
     }
 
-    // 更新最后登录时间
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() }
+    const tokens = await this.generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
     });
 
-    const tokens = await this.generateTokens(user);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role
-      },
-      tokens
-    };
+    return { user, ...tokens };
   }
 
-  async refreshToken(refreshToken: string): Promise<AuthTokens> {
+  async refreshToken(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify<TokenPayload & { type: string }>(
-        refreshToken,
-        {
-          secret: this.configService.get<string>('JWT_REFRESH_SECRET')
-        }
-      );
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
 
       if (payload.type !== 'refresh') {
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException('无效的刷新令牌');
       }
 
       const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub }
+        where: { id: payload.sub },
       });
 
       if (!user || !user.isActive) {
-        throw new UnauthorizedException('User not found or disabled');
+        throw new UnauthorizedException('用户不存在或已被禁用');
       }
 
-      return this.generateTokens(user);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new UnauthorizedException('Invalid refresh token');
+      return this.generateTokens({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      });
+    } catch {
+      throw new UnauthorizedException('令牌已过期');
     }
   }
 
-  async logout(userId: string): Promise<void> {
-    // 在实际应用中，这里可能需要将刷新令牌加入黑名单
-    // 可以使用 Redis 存储已撤销的令牌
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastLoginAt: new Date() } // 记录登出时间
-    });
+  private async generateTokens(payload: { id: string; email: string; role: string }) {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: '15m',
+      }),
+      this.jwtService.signAsync(
+        { ...payload, type: 'refresh' },
+        {
+          secret: this.configService.get('JWT_REFRESH_SECRET'),
+          expiresIn: '7d',
+        },
+      ),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
+}
+```
+
+```typescript
+// auth.controller.ts - 认证控制器
+@Controller('auth')
+@ApiTags('认证')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @Public() // 不需要认证
+  @ApiOperation({ summary: '用户注册' })
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  async validateUser(userId: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  @ApiOperation({ summary: '用户登录' })
+  async login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
 
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('User not found or disabled');
-    }
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  @ApiOperation({ summary: '刷新令牌' })
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto.refreshToken);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户' })
+  async getProfile(@CurrentUser() user: any) {
+    return user;
+  }
+}
+```
+
+---
+
+## 微服务与消息队列
+
+NestJS 内置了强大的微服务支持，可以轻松构建分布式系统。
+
+### Redis 消息队列
+
+```typescript
+// main.ts - 启动微服务
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  app.connectMicroservice({
+    transport: Transport.REDIS,
+    options: {
+      host: 'localhost',
+      port: 6379,
+    },
+  });
+
+  await app.startAllMicroservices();
+  await app.listen(3000);
+}
+
+// users.service.ts - 事件发射
+@Injectable()
+export class UsersService {
+  constructor(private readonly eventEmitter: EventEmitter2) {}
+
+  async create(dto: CreateUserDto) {
+    const user = await this.prisma.user.create({ data: dto });
+
+    // 发射领域事件
+    this.eventEmitter.emit('user.created', {
+      userId: user.id,
+      email: user.email,
+      timestamp: new Date(),
+    });
 
     return user;
   }
-
-  private async generateTokens(user: User): Promise<AuthTokens> {
-    const payload: TokenPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role
-    };
-
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '15m'
-    });
-
-    const refreshToken = this.jwtService.sign(
-      { ...payload, type: 'refresh' },
-      {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: '7d'
-      }
-    );
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: 900 // 15 minutes in seconds
-    };
-  }
-}
-```
-
-### 项目二：文件上传与处理系统
-
-**功能特性**：
-
-- 支持多种文件类型（图片、文档、音频、视频）
-- 文件大小限制和类型验证
-- 存储桶隔离和 RLS 策略
-- 缩略图生成（图片）
-- 文件元数据存储
-
-```typescript
-// src/storage/dto/upload-file.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-
-export enum FileCategory {
-  IMAGE = 'image',
-  DOCUMENT = 'document',
-  AUDIO = 'audio',
-  VIDEO = 'video',
-  OTHER = 'other'
 }
 
-export class UploadFileDto {
-  @ApiProperty({ enum: FileCategory, description: 'File category' })
-  @IsEnum(FileCategory)
-  category: FileCategory;
-
-  @ApiPropertyOptional({ description: 'Optional folder path' })
-  @IsOptional()
-  @IsString()
-  folder?: string;
-
-  @ApiPropertyOptional({ description: 'Cache control in seconds' })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(31536000)
-  cacheControl?: number;
-}
-
-export class FileResponseDto {
-  @ApiProperty()
-  id: string;
-
-  @ApiProperty()
-  name: string;
-
-  @ApiProperty()
-  url: string;
-
-  @ApiProperty()
-  size: number;
-
-  @ApiProperty()
-  mimeType: string;
-
-  @ApiProperty()
-  category: FileCategory;
-
-  @ApiProperty()
-  createdAt: Date;
-}
-```
-
-```typescript
-// src/storage/storage.service.ts
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException
-} from '@nestjs/common';
-import { SupabaseClient, StorageFileApi } from '@supabase/supabase-js';
-import { ConfigService } from '@nestjs/config';
-import { v4 as uuidv4 } from 'uuid';
-
+// events.listener.ts - 事件监听
 @Injectable()
-export class StorageService {
-  private readonly bucket: string;
-  private readonly maxFileSize: number;
-  private readonly allowedMimeTypes: Record<FileCategory, string[]>;
-
+export class UserEventListener {
   constructor(
-    private readonly supabase: SupabaseClient,
-    private readonly configService: ConfigService
-  ) {
-    this.bucket = this.configService.get<string>('STORAGE_BUCKET', 'files');
-    this.maxFileSize = 10 * 1024 * 1024; // 10MB default
-    
-    this.allowedMimeTypes = {
-      [FileCategory.IMAGE]: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-      [FileCategory.DOCUMENT]: ['application/pdf', 'application/msword', 
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'text/plain', 'text/markdown'
-      ],
-      [FileCategory.AUDIO]: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4'],
-      [FileCategory.VIDEO]: ['video/mp4', 'video/webm', 'video/quicktime'],
-      [FileCategory.OTHER]: ['*/*']
-    };
-  }
-
-  async upload(
-    file: Buffer,
-    fileName: string,
-    options: {
-      userId: string;
-      category: FileCategory;
-      folder?: string;
-      mimeType?: string;
-    }
-  ): Promise<{
-    id: string;
-    name: string;
-    url: string;
-    size: number;
-    mimeType: string;
-    category: FileCategory;
-  }> {
-    const { userId, category, folder, mimeType } = options;
-
-    // 验证文件大小
-    if (file.length > this.maxFileSize) {
-      throw new BadRequestException(
-        `File size exceeds maximum allowed size of ${this.maxFileSize / 1024 / 1024}MB`
-      );
-    }
-
-    // 验证文件类型
-    if (!this.isAllowedType(mimeType || 'application/octet-stream', category)) {
-      throw new BadRequestException(
-        `File type ${mimeType} is not allowed for category ${category}`
-      );
-    }
-
-    // 生成唯一文件名
-    const ext = fileName.split('.').pop();
-    const uniqueName = `${uuidv4()}.${ext}`;
-    const path = this.buildPath(userId, category, folder, uniqueName);
-
-    // 上传到 Supabase Storage
-    const { data, error } = await this.supabase.storage
-      .from(this.bucket)
-      .upload(path, file, {
-        cacheControl: options.cacheControl || 3600,
-        contentType: mimeType,
-        upsert: false
-      });
-
-    if (error) {
-      throw new BadRequestException(`Failed to upload file: ${error.message}`);
-    }
-
-    // 获取公开 URL
-    const { data: urlData } = this.supabase.storage
-      .from(this.bucket)
-      .getPublicUrl(path);
-
-    return {
-      id: uuidv4(),
-      name: fileName,
-      url: urlData.publicUrl,
-      size: file.length,
-      mimeType: mimeType || 'application/octet-stream',
-      category
-    };
-  }
-
-  async uploadMultiple(
-    files: Array<{
-      buffer: Buffer;
-      fileName: string;
-      mimeType?: string;
-    }>,
-    options: {
-      userId: string;
-      category: FileCategory;
-      folder?: string;
-    }
-  ): Promise<Array<{
-    id: string;
-    name: string;
-    url: string;
-    size: number;
-    mimeType: string;
-    category: FileCategory;
-    success: boolean;
-    error?: string;
-  }>> {
-    const results = await Promise.allSettled(
-      files.map(file =>
-        this.upload(file.buffer, file.fileName, {
-          userId: options.userId,
-          category: options.category,
-          folder: options.folder,
-          mimeType: file.mimeType
-        })
-      )
-    );
-
-    return results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return { ...result.value, success: true };
-      } else {
-        return {
-          id: '',
-          name: files[index].fileName,
-          url: '',
-          size: 0,
-          mimeType: files[index].mimeType || '',
-          category: options.category,
-          success: false,
-          error: result.reason.message
-        };
-      }
-    });
-  }
-
-  async getFile(userId: string, filePath: string): Promise<Buffer> {
-    const path = this.buildFilePath(userId, filePath);
-
-    const { data, error } = await this.supabase.storage
-      .from(this.bucket)
-      .download(path);
-
-    if (error || !data) {
-      throw new NotFoundException('File not found');
-    }
-
-    return Buffer.from(await data.arrayBuffer());
-  }
-
-  async deleteFile(userId: string, filePath: string): Promise<void> {
-    const path = this.buildFilePath(userId, filePath);
-
-    const { error } = await this.supabase.storage
-      .from(this.bucket)
-      .remove([path]);
-
-    if (error) {
-      throw new BadRequestException(`Failed to delete file: ${error.message}`);
-    }
-  }
-
-  async listFiles(
-    userId: string,
-    options: {
-      category?: FileCategory;
-      folder?: string;
-      limit?: number;
-      offset?: number;
-    } = {}
-  ): Promise<{
-    files: Array<{
-      name: string;
-      url: string;
-      size: number;
-      mimeType: string;
-      createdAt: Date;
-    }>;
-    total: number;
-  }> {
-    const folder = this.buildPath(userId, options.category, options.folder);
-
-    const { data, error } = await this.supabase.storage
-      .from(this.bucket)
-      .list(folder, {
-        limit: options.limit || 50,
-        offset: options.offset || 0,
-        sortBy: { column: 'created_at', order: 'desc' }
-      });
-
-    if (error) {
-      throw new BadRequestException(`Failed to list files: ${error.message}`);
-    }
-
-    const files = await Promise.all(
-      (data || []).map(async file => {
-        const fullPath = `${folder}/${file.name}`;
-        const { data: urlData } = this.supabase.storage
-          .from(this.bucket)
-          .getPublicUrl(fullPath);
-
-        return {
-          name: file.name,
-          url: urlData.publicUrl,
-          size: file.metadata?.size || 0,
-          mimeType: file.metadata?.mimetype || 'application/octet-stream',
-          createdAt: new Date(file.created_at || Date.now())
-        };
-      })
-    );
-
-    return {
-      files,
-      total: files.length
-    };
-  }
-
-  private isAllowedType(mimeType: string, category: FileCategory): boolean {
-    const allowed = this.allowedMimeTypes[category];
-    return allowed.includes('*/*') || allowed.includes(mimeType);
-  }
-
-  private buildPath(
-    userId: string,
-    category?: FileCategory,
-    folder?: string,
-    fileName?: string
-  ): string {
-    const parts = [userId, category || 'other'];
-    if (folder) parts.push(folder);
-    if (fileName) parts.push(fileName);
-    return parts.join('/');
-  }
-
-  private buildFilePath(userId: string, filePath: string): string {
-    return `${userId}/${filePath}`;
-  }
-}
-```
-
----
-
-> [!SUCCESS]
-> NestJS 以 Angular 风格的模块化架构为 Node.js 后端开发带来了企业级的工程实践。依赖注入、AOP、装饰器模式等特性使得代码组织清晰、易于测试。对于需要构建可扩展、可维护后端服务的团队，NestJS 是一个值得认真考虑的选择。
-
----
-
-## 附录：NestJS 常用配置模板
-
-### 开发环境配置
-
-```typescript
-// .env.development
-NODE_ENV=development
-PORT=3000
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_NAME=myapp_dev
-DATABASE_USER=postgres
-DATABASE_PASSWORD=dev_password
-JWT_SECRET=dev_jwt_secret_change_in_production
-JWT_EXPIRES_IN=1d
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
-
-```typescript
-// .env.production
-NODE_ENV=production
-PORT=8080
-DATABASE_HOST=prod-db.example.com
-DATABASE_PORT=5432
-DATABASE_NAME=myapp_prod
-DATABASE_USER=prod_user
-DATABASE_PASSWORD=<from_secrets_manager>
-JWT_SECRET=<from_secrets_manager>
-JWT_EXPIRES_IN=15m
-REDIS_HOST=prod-redis.example.com
-REDIS_PORT=6379
-```
-
-### Docker 配置示例
-
-```dockerfile
-# Dockerfile
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-
-WORKDIR /app
-ENV NODE_ENV=production
-
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-
-RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
-USER nestjs
-
-EXPOSE 8080
-CMD ["node", "dist/main"]
-```
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_HOST=postgres
-      - REDIS_HOST=redis
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: myapp
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-
-volumes:
-  postgres_data:
-  redis_data:
-```
-
-### CI/CD 配置示例
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run test:cov
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage/lcov.info
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - run: npm ci
-      - run: npm run build
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-      
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            myapp:${{ github.sha }}
-            myapp:latest
-```
-
-### 健康检查配置
-
-```typescript
-// health.controller.ts
-import { Controller, Get } from '@nestjs/common';
-import {
-  HealthCheck,
-  HealthCheckService,
-  TypeOrmHealthIndicator,
-  MemoryHealthIndicator,
-  DiskHealthIndicator,
-} from '@nestjs/terminus';
-
-@Controller('health')
-export class HealthController {
-  constructor(
-    private health: HealthCheckService,
-    private db: TypeOrmHealthIndicator,
-    private memory: MemoryHealthIndicator,
-    private disk: DiskHealthIndicator,
+    private readonly emailService: EmailService,
+    private readonly auditService: AuditService,
   ) {}
 
-  @Get()
-  @HealthCheck()
-  check() {
-    return this.health.check([
-      () => this.db.pingCheck('database'),
-      
-      () => this.memory.checkRSS(
-        'memory_rss',
-        300 * 1024 * 1024, // 300MB
-      ),
-      
-      () => this.disk.checkStorage(
-        'disk',
-        { thresholdPercent: 0.9, path: '/' },
-      ),
-    ]);
+  @OnEvent('user.created')
+  async handleUserCreated(payload: { userId: string; email: string }) {
+    // 发送欢迎邮件
+    await this.emailService.sendWelcomeEmail(payload.email);
+
+    // 记录审计日志
+    await this.auditService.log({
+      action: 'user.created',
+      resourceId: payload.userId,
+    });
+  }
+
+  @OnEvent('user.deleted')
+  async handleUserDeleted(payload: { userId: string }) {
+    // 清理相关数据
+    await this.cleanupUserData(payload.userId);
   }
 }
 ```
 
-### 性能监控配置
+### RabbitMQ 消息队列
 
 ```typescript
-// metrics.service.ts
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from 'prom-client';
+// 微服务连接
+app.connectMicroservice({
+  transport: Transport.RMQ,
+  options: {
+    urls: ['amqp://localhost:5672'],
+    queue: 'notifications_queue',
+    queueOptions: { durable: true },
+  },
+});
 
-@Injectable()
-export class MetricsService implements OnModuleInit {
-  private readonly registry: Registry;
-  private readonly httpRequestsTotal: Counter;
-  private readonly httpRequestDuration: Histogram;
-  private readonly activeConnections: Gauge;
-
-  constructor() {
-    this.registry = new Registry();
-    
-    this.httpRequestsTotal = new Counter({
-      name: 'http_requests_total',
-      help: 'Total number of HTTP requests',
-      labelNames: ['method', 'path', 'status'],
-      registers: [this.registry],
-    });
-
-    this.httpRequestDuration = new Histogram({
-      name: 'http_request_duration_seconds',
-      help: 'Duration of HTTP requests in seconds',
-      labelNames: ['method', 'path'],
-      buckets: [0.01, 0.05, 0.1, 0.5, 1, 5],
-      registers: [this.registry],
-    });
-
-    this.activeConnections = new Gauge({
-      name: 'active_connections',
-      help: 'Number of active connections',
-      registers: [this.registry],
-    });
+// 消息处理器
+@Controller()
+export class NotificationsController {
+  @MessagePattern('notification.email')
+  async handleEmailNotification(@Payload() data: EmailPayload) {
+    await this.emailService.send(data);
+    return { success: true };
   }
 
-  onModuleInit() {
-    collectDefaultMetrics({ register: this.registry });
-  }
-
-  incrementRequest(method: string, path: string, status: number) {
-    this.httpRequestsTotal.inc({ method, path, status });
-  }
-
-  observeRequestDuration(method: string, path: string, duration: number) {
-    this.httpRequestDuration.observe({ method, path }, duration);
-  }
-
-  async getMetrics(): Promise<string> {
-    return this.registry.metrics();
+  @MessagePattern('notification.push')
+  async handlePushNotification(@Payload() data: PushPayload) {
+    await this.pushService.send(data);
+    return { success: true };
   }
 }
 ```
+
+---
+
+## GraphQL 集成
+
+NestJS 提供了完整的 GraphQL 支持，包括代码优先和 schema 优先两种开发方式。
+
+```typescript
+// app.module.ts - GraphQL 配置
+@Module({
+  imports: [
+    GraphQLModule.forRoot({
+      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      sortSchema: true,
+      playground: process.env.NODE_ENV !== 'production',
+      introspection: true,
+      subscriptions: {
+        'graphql-ws': true,
+      },
+      context: ({ req, connection }) => {
+        if (connection) {
+          return { req: connection.context };
+        }
+        return { req };
+      },
+    }),
+  ],
+})
+export class AppModule {}
+
+// users.resolver.ts - GraphQL Resolver
+@Resolver(() => User)
+export class UsersResolver {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Query(() => [User], { name: 'users' })
+  async findAll(
+    @Args('page', { type: () => Int, defaultValue: 1 }) page: number,
+    @Args('limit', { type: () => Int, defaultValue: 20 }) limit: number,
+  ) {
+    return this.usersService.findAll({ page, limit });
+  }
+
+  @Query(() => User, { name: 'user', nullable: true })
+  async findOne(@Args('id', { type: () => ID }) id: string) {
+    return this.usersService.findOne(id);
+  }
+
+  @Mutation(() => User)
+  async createUser(@Args('input') input: CreateUserInput) {
+    return this.usersService.create(input);
+  }
+
+  @Mutation(() => User)
+  async updateUser(
+    @Args('id', { type: () => ID }) id: string,
+    @Args('input') input: UpdateUserInput,
+  ) {
+    return this.usersService.update(id, input);
+  }
+
+  @Subscription(() => User)
+  userCreated() {
+    return this.pubSub.asyncIterator('userCreated');
+  }
+}
+```
+
+---
+
+## NestJS vs Spring Boot：Java 开发者的视角
+
+很多从 Java 阵营转来的开发者会拿 NestJS 和 Spring Boot 做对比，因为两者在很多设计理念上确实非常相似。
+
+| 维度 | NestJS | Spring Boot |
+|------|--------|-------------|
+| **语言** | TypeScript/JavaScript | Java/Kotlin |
+| **依赖注入** | 装饰器 + TypeScript 反射 | 注解 + Java 反射 |
+| **ORM** | TypeORM/Prisma | JPA/Hibernate/MyBatis |
+| **配置** | ConfigModule + .env | @ConfigurationProperties |
+| **验证** | class-validator | Jakarta Validation |
+| **安全** | Guards + Passport | Spring Security |
+| **API 文档** | @nestjs/swagger | SpringDoc OpenAPI |
+| **测试** | Jest | JUnit + Mockito |
+| **生态** | Node.js 生态 | Java 生态 |
+
+如果你有 Spring Boot 背景，学习 NestJS 会非常轻松——核心概念几乎是一一对应的：
+
+- `@Injectable()` 类比 Spring 的 `@Service` 或 `@Component`
+- `@Controller()` 类比 Spring 的 `@RestController`
+- `@Module()` 类比 Spring 的 `@Configuration`
+- Guards 类比 Spring Security 的 `HandlerInterceptor`
+- Interceptors 类比 Spring 的 `HandlerInterceptor` 和 AOP 切面
+- Pipes 类比 Spring 的 `HandlerMethodArgumentResolver`
+
+> [!TIP]
+> **从 Java 迁移的建议**：NestJS 的好处是可以用同样的工程化思维来构建 Node.js 应用，但需要注意的是 Java 和 JavaScript/TypeScript 的运行时特性不同。Java 是强类型、预编译语言，而 TypeScript 最终编译为 JavaScript 运行。某些在 Java 中习以为常的做法（如深度反射）在 TypeScript 中可能会遇到性能问题。
+
+---
+
+## 选型建议：何时使用 NestJS
+
+### 适合使用 NestJS 的场景
+
+**第一，团队有 Angular 背景。** 如果你的前端团队使用 Angular，他们会对 NestJS 的模块、依赖注入和装饰器非常熟悉，可以快速上手。
+
+**第二，需要构建企业级应用。** NestJS 的模块化架构、依赖注入和 AOP 特性非常适合构建需要长期维护的中大型项目。
+
+**第三，需要 GraphQL 和 REST 并存。** NestJS 同时支持 RESTful API 和 GraphQL，可以满足复杂的 API 需求。
+
+**第四，需要微服务架构。** NestJS 内置了微服务支持，可以轻松构建分布式系统。
+
+**第五，团队有 Java 背景。** 如果你的团队熟悉 Spring Boot 的开发模式，NestJS 可以说是 Node.js 版本的 Spring Boot。
+
+### 不适合使用 NestJS 的场景
+
+**第一，简单脚本或工具。** 对于一次性脚本、CLI 工具等，不需要 NestJS 的复杂性。
+
+**第二，极致性能场景。** 如果你的应用需要处理超高并发（>100K QPS），Fastify 可能是更好的选择。
+
+**第三，边缘计算。** NestJS 目前无法运行在 Cloudflare Workers 等边缘环境中，这种场景下应该选择 Hono。
+
+**第四，快速原型。** 对于 MVP 和原型开发，Express 的灵活性更适合快速迭代。
+
+---
+
+## 常见陷阱与最佳实践
+
+### 陷阱一：上帝模块
+
+```typescript
+// ❌ 错误：所有东西都塞进 AppModule
+@Module({
+  imports: [TypeOrmModule, AuthModule, UsersModule, PostsModule, CommentsModule, TagsModule, ...],
+  controllers: [UsersController, PostsController, CommentsController, TagsController, ...],
+  providers: [UsersService, PostsService, CommentsService, TagsService, ...],
+})
+export class AppModule {}
+
+// ✅ 正确：按功能领域划分模块
+@Module({
+  imports: [UsersModule, PostsModule, CommentsModule],
+  controllers: [HealthController],
+  providers: [AppService],
+})
+export class AppModule {}
+```
+
+### 陷阱二：循环依赖
+
+```typescript
+// ❌ 错误：两个模块相互导入造成循环依赖
+@Module({ imports: [PostsModule] })
+export class UsersModule {}
+
+@Module({ imports: [UsersModule] })
+export class PostsModule {}
+
+// ✅ 正确：使用 shared 模块或事件通信
+// 方案 1：提取共享模块
+@Module({ exports: [UsersService] })
+export class UsersModule {}
+
+@Module({ imports: [UsersModule] })
+export class PostsModule {}
+
+// 方案 2：使用事件（事件驱动的解耦）
+@Injectable()
+class PostsService {
+  constructor(private readonly eventEmitter: EventEmitter2) {}
+
+  async createPost(dto) {
+    const post = await this.postRepository.create(dto);
+    this.eventEmitter.emit('post.created', { postId: post.id });
+    return post;
+  }
+}
+```
+
+### 陷阱三：全局守卫滥用
+
+```typescript
+// ❌ 错误：所有路由都应用了认证守卫
+app.useGlobalGuards(new JwtAuthGuard());
+
+// ✅ 正确：按需应用守卫
+@Module({
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
+})
+export class AuthModule {}
+
+// 然后在需要认证的路由上应用守卫
+@Controller('posts')
+@UseGuards(JwtAuthGuard)
+export class PostsController {}
+```
+
+### 最佳实践清单
+
+1. **模块划分要清晰**：每个模块应该专注于一个功能领域，拥有明确的边界。
+
+2. **使用 DTO 进行数据验证**：不要在服务中直接使用请求体，使用 class-validator 的 DTO。
+
+3. **合理使用依赖注入**：服务之间的依赖通过构造函数注入，不要直接创建实例。
+
+4. **使用全局异常过滤器**：统一处理错误响应格式。
+
+5. **实现健康检查**：使用 `@nestjs/terminus` 提供健康检查端点。
+
+6. **编写测试**：利用 NestJS 的测试工具为每个服务编写单元测试。
+
+7. **使用 Swagger 文档**：使用 `@nestjs/swagger` 生成 API 文档。
+
+8. **配置分离**：开发、测试、生产环境使用不同的配置。
+
+9. **合理使用 `forwardRef`**：只有确实存在循环依赖时才使用 forwardRef，并尽快重构消除循环依赖。
+
+10. **性能监控**：集成 Prometheus 或其他监控工具来追踪性能指标。
+
+> [!SUCCESS]
+> NestJS 以 Angular 风格的模块化架构为 Node.js 后端开发带来了企业级的工程实践。依赖注入、AOP、装饰器模式等特性使得代码组织清晰、易于测试。对于需要构建可扩展、可维护后端服务的团队，NestJS 是一个值得认真考虑的选择——特别是当你的团队有 Angular 或 Spring Boot 背景时。

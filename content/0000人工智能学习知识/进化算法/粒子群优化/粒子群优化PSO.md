@@ -35,88 +35,272 @@ alias: Particle Swarm Optimization
 
 ---
 
-# 一、PSO的起源与理论基础
+# PSO入门：从鸟群觅食说起
 
-## 1.1 生物社会学起源
+## 一个关于鸟群的故事
 
-PSO的诞生源于对生物群体行为的观察与建模。Kennedy和Eberhart在研究人工生命和群智能时，发现鸟群、鱼群等群体在觅食过程中表现出一种"集体智慧"——尽管每个个体只拥有有限的认知能力，但群体通过简单的局部交互能够实现复杂的全局行为。
+想象一下这个场景：周末你去公园，看到一群鸟在草地上觅食。它们看起来漫无目的地四处走动，但实际上这套"无组织无纪律"的觅食方式暗藏玄机。
 
-**核心观察**：
-- 鸟类在飞行时会调整自身轨迹，既参考自身经验（认知部分），也参考邻近个体的经验（社会部分）
-- 群体的运动呈现一种"动态平衡"，既有探索新区域的趋势，也有向已发现优质区域聚集的趋势
+鸟群中的每只鸟其实都在遵循三条简单的规则：
 
-## 1.2 社会认知理论
+第一条，**自己找食吃**。每只鸟都会记住自己飞过的路径中哪里食物最多，下次可能还会去那片区域碰碰运气。
 
-PSO的数学模型融合了社会心理学中的几个核心概念：
+第二条，**跟着同伴走**。如果某只鸟发现附近有同伴找到了好吃的，它可能会凑过去看看。
 
-1. **社会影响（Social Influence）**：个体受邻近个体行为的影响
-2. **社会学习（Social Learning）**：个体从群体经验中获取信息
-3. **认知一致性（Cognitive Consistency）**：个体倾向于保持自身经验的一致性
+第三条，**不忘探索新地方**。虽然跟着同伴走挺省事，但完全放弃自主探索的话，万一哪天那片区域食物没了，整个鸟群都得饿死。
 
-## 1.3 与其他进化算法的对比
+这三条规则看起来平平无奇对吧？但正是这种"个体自主探索 + 群体信息共享"的机制，让鸟群能够快速找到食物丰富的区域。单个鸟的能力很有限，但群体合作起来就厉害了——这在生物学上叫"涌现"（emergence），就是个体简单行为的叠加产生了复杂的群体智慧。
 
-| 特征 | PSO | 遗传算法 | 差分进化 |
-|------|-----|---------|---------|
-| 信息共享 | 粒子相互通信 | 交叉重组 | 差分向量 |
-| 参数数量 | 少 | 中等 | 中等 |
-| 记忆机制 | pbest/gbest | 种群记忆 | 选择压力 |
-| 收敛速度 | 快 | 较慢 | 中等 |
+1995年，Kennedy和Eberhart两位老哥从鸟群觅食这个现象中得到启发，提出了粒子群优化算法（PSO）。他们把每只鸟看成一个"粒子"（particle），把觅食区域看成一个需要优化的"解空间"，把食物最密集的位置看做"最优解"。粒子的飞行方向和速度会受三个因素影响：自己飞过的最好位置、邻居找到的最好位置、以及惯性（继续保持原来的飞行方向）。就这么简单的一个机制，在很多优化问题上效果出奇的好。
+
+## 为什么PSO值得关注？
+
+你在网上搜优化算法，遗传算法（GA）、模拟退火（SA）、粒子群优化（PSO）这些都是老面孔了。但PSO有几个特点让它特别适合某些场景：
+
+第一个是**简单粗暴**。PSO的核心公式就一行，代码写起来比遗传算法短多了。遗传算法还要设计交叉、变异、选择三种操作，PSO只需要更新速度和位置两个公式。你要是想快速验证一个想法，PSO能让你少写不少代码。
+
+第二个是**收敛快**。很多场景下PSO比遗传算法收敛得快，尤其在连续优化问题上。当然代价是可能更容易陷入局部最优，这个我们后面会详细说。
+
+第三个是**参数少**。PSO需要调的参数不多，主要就是粒子数量、惯性权重、两个学习因子，新手也能玩得转。
+
+当然PSO不是万能的。对于离散优化问题、组合优化问题，你需要用改进版的PSO。对于多目标优化，标准PSO也得加点东西才能用。这些我们都会讲到。
 
 ---
 
-# 二、基本数学模型
+# PSO vs 遗传算法：本质区别是什么？
 
-## 2.1 速度和位置更新
+很多初学者学完GA（遗传算法）再学PSO，会有个困惑：这两个都是进化算法，看起来都是在"种群"里搜索，有什么本质区别？
 
-PSO中每个粒子代表解空间中的一个候选解，其状态由位置和速度描述：
+## 信息传递的方式不同
 
-**位置更新公式**：
+这是最核心的区别。
+
+遗传算法靠**"繁殖"**来传递信息。父代通过交叉生成子代，子代继承父代的部分基因，本质上是在"组合"已有的信息。如果一个好的解决方案包含A特征和B特征，GA通过交叉有概率把这两个特征组合到同一个个体上。
+
+PSO靠**"通信"**来传递信息。粒子之间直接共享自己找到的好位置，粒子会朝着自己历史去过的最好位置和群体发现的最好位置飞去。信息是"流动"的，而不是"继承"的。
+
+打个比方，GA像是**婚姻制度**——两个人结婚生孩子，孩子的基因是父母基因的混合。PSO像是**朋友圈**——你看到朋友去了某个好地方，你就直接打车过去跟他汇合，不需要等他生个孩子继承他的属性。
+
+## 记忆机制不同
+
+GA的种群是没有记忆的。每一代都是全新的个体，老一代死亡、新一代诞生，父辈的经验只能通过基因编码传递给子代。如果某一代突然出现了一个特别好的个体，但它没来得及繁殖就死了，那这个好信息就永远丢失了。
+
+PSO的每个粒子都有记忆。每个粒子会记住自己飞过的最好位置（pbest），整个群体会记住找到的最好位置（gbest或lbest）。这些信息不会丢失，会一直引导后续的搜索。
+
+## 探索与开发的平衡机制不同
+
+GA的探索-开发平衡主要靠**变异算子**。交叉负责"开发"——在已有解的基础上小修小补；变异负责"探索"——跳到解空间的未知区域。参数设置直接影响这两者的比例。
+
+PSO的探索-开发平衡靠**惯性权重**。惯性权重控制粒子保持原方向飞行的倾向：惯性大，粒子探索能力强但收敛慢；惯性小，粒子开发能力强但可能错过好区域。
+
+## 该用哪个？
+
+给你一个简单的决策参考：
+
+如果你解决的是**连续函数优化**问题，维度不太高（几十维以内），优先试试PSO，速度快、实现简单。
+
+如果你解决的是**组合优化**问题，比如调度、路由、装箱，GA及其变体更成熟。
+
+如果你需要**多目标优化**，NSGA-II这种专门设计的多目标遗传算法更适合，PSO需要做不少改造。
+
+如果你的问题**维度特别高**（几百上千维），试试协同PSO或者降维策略。
+
+当然这些都是经验之谈，具体问题还得具体分析。很多时候两个算法都试试，比一比哪个效果好，这是最靠谱的做法。
+
+---
+
+# 速度-位置更新公式的直觉理解
+
+## 先看公式
+
+PSO的核心就是这两个公式：
+
+速度更新：
+
+$$
+\mathbf{v}_i(t+1) = w \cdot \mathbf{v}_i(t) + c_1 \cdot r_1 \cdot (\mathbf{p}_i - \mathbf{x}_i(t)) + c_2 \cdot r_2 \cdot (\mathbf{g} - \mathbf{x}_i(t))
+$$
+
+位置更新：
 
 $$
 \mathbf{x}_i(t+1) = \mathbf{x}_i(t) + \mathbf{v}_i(t+1)
 $$
 
-**速度更新公式**：
+刚看到公式可能有点懵，我来帮你拆解一下每个部分的含义。
 
-$$
-\mathbf{v}_i(t+1) = \underbrace{w \cdot \mathbf{v}_i(t)}_{\text{惯性项}} + 
-\underbrace{c_1 \cdot r_1 \cdot (\mathbf{p}_i - \mathbf{x}_i(t))}_{\text{认知项}} + 
-\underbrace{c_2 \cdot r_2 \cdot (\mathbf{g} - \mathbf{x}_i(t))}_{\text{社会项}}
-$$
+## 三个组成部分
 
-其中：
-- $\mathbf{x}_i(t)$：第$i$个粒子在时刻$t$的位置
-- $\mathbf{v}_i(t)$：第$i$个粒子在时刻$t$的速度
-- $w$：惯性权重（inertia weight）
-- $c_1$：认知学习因子（cognitive parameter）
-- $c_2$：社会学习因子（social parameter）
-- $r_1, r_2 \sim U(0,1)$：均匀分布的随机数
-- $\mathbf{p}_i$：第$i$个粒子的历史最优位置（pbest）
-- $\mathbf{g}$：全局最优粒子的位置（gbest）
+**第一项：惯性项** $w \cdot \mathbf{v}_i(t)$
 
-## 2.2 速度限制
+这一项的意思是"继续按原来的方向飞"。$w$是惯性权重，通常取0到1之间的值。如果$w=0.9$，粒子会保留90%的原速度方向；如果$w=0.1$，粒子基本会改变方向。
 
-为防止速度过大导致粒子越过最优区域，通常对速度进行限制：
+惯性项的作用是**维持搜索的连续性**。想象一下，如果粒子每一步都完全改变方向，那它的飞行轨迹就会非常不稳定，像个无头苍蝇一样乱窜。惯性让粒子的移动更平滑，同时也能帮助跳出局部最优。
 
-$$
-v_{ij} \in [-v_{\max}, v_{\max}]
-$$
+**第二项：认知项** $c_1 \cdot r_1 \cdot (\mathbf{p}_i - \mathbf{x}_i(t))$
 
-其中$v_{\max}$通常设为搜索空间范围的10%-20%。
+这一项的意思是"向自己曾经找到的最好位置飞"。$\mathbf{p}_i$是第$i$个粒子历史上到过的最优位置，$\mathbf{p}_i - \mathbf{x}_i(t)$就是从当前位置指向历史最优的向量。
 
-## 2.3 位置限制
+$c_1$是认知学习因子，控制"相信自己的经验"的程度。$r_1$是0到1之间的随机数，用来增加一点随机性，避免所有粒子都走同一条路。
 
-粒子的位置也需要限制在搜索空间内：
+**第三项：社会项** $c_2 \cdot r_2 \cdot (\mathbf{g} - \mathbf{x}_i(t))$
 
-$$
-x_{ij} \in [x_{\min}^j, x_{\max}^j]
-$$
+这一项的意思是"向群体找到的最好位置飞"。$\mathbf{g}$是整个粒子群找到的最优位置。
+
+$c_2$是社会学习因子，控制"相信群体的智慧"的程度。$r_2$同样是随机数。
+
+## 一个形象的比喻
+
+把这三个项想象成你做人生决策时考虑的三种声音：
+
+惯性项代表"惯性"——你习惯的生活方式、按部就班的发展路径。想改变惯性需要额外的努力。
+
+认知项代表"自我反思"——你过去踩过的坑、学到的经验。你会参考自己的历史来调整下一步。
+
+社会项代表"社会学习"——朋友建议、行业趋势、专家意见。你会参考别人的成功经验来指导自己。
+
+PSO的粒子就是同时听取这三种声音的"理性决策者"。三种声音的权重不同，最终的行为模式也不同。
+
+## 随机数为什么存在？
+
+细心的人会问：$\mathbf{p}_i - \mathbf{x}_i(t)$已经是一个确定的方向了，为什么还要乘以$r_1$和$r_2$？
+
+这其实是PSO设计的一个巧妙之处。
+
+如果没有随机项，所有粒子在同样的初始条件下会沿着完全相同的轨迹移动（因为公式是确定性的）。这叫"确定性崩溃"——所有粒子聚集到同一条路径上，失去了多样性。
+
+加入随机项后，即使初始条件相同，不同粒子也会因为随机数的差异走出不同的轨迹。$r_1$让粒子"不一定完全听从自己的经验"，$r_2$让粒子"不一定完全跟随群体的方向"。这种有限度的"叛逆"保证了种群的多样性，避免早熟收敛。
 
 ---
 
-# 三、完整算法实现
+# 从零实现PSO：Python完整代码
 
-## 3.1 标准PSO算法
+## 最简版本的PSO
+
+我们先实现一个最简单、最容易理解的版本，不追求任何优化，只追求清晰表达PSO的核心思想：
+
+```python
+import numpy as np
+
+def basic_pso(objective, bounds, n_particles=30, max_iter=100):
+    """
+    最基础的PSO实现
+    
+    参数:
+        objective: 目标函数，接受一个numpy数组，返回一个标量
+        bounds: 解空间边界，格式为 [(min, max), (min, max), ...]
+        n_particles: 粒子数量
+        max_iter: 最大迭代次数
+    返回:
+        best_position: 找到的最优解
+        best_fitness: 最优解对应的目标函数值
+    """
+    dim = len(bounds)
+    
+    # 第一步：初始化所有粒子的位置和速度
+    # 位置：在边界范围内随机初始化
+    positions = np.array([
+        np.random.uniform(b[0], b[1], n_particles) for b in bounds
+    ]).T  # 转置后每行是一个粒子的位置
+    
+    # 速度：初始化为0
+    velocities = np.zeros((n_particles, dim))
+    
+    # 第二步：评估初始适应度
+    fitness = np.array([objective(pos) for pos in positions])
+    
+    # 第三步：记录每个粒子的历史最优位置
+    personal_best_positions = positions.copy()
+    personal_best_fitness = fitness.copy()
+    
+    # 第四步：找到群体的全局最优
+    global_best_idx = np.argmin(fitness)
+    global_best_position = positions[global_best_idx].copy()
+    global_best_fitness = fitness[global_best_idx]
+    
+    # 开始迭代
+    for iteration in range(max_iter):
+        # 参数设置
+        w = 0.7   # 惯性权重
+        c1 = 1.5  # 认知系数（相信自己）
+        c2 = 1.5  # 社会系数（相信群体）
+        
+        for i in range(n_particles):
+            # 生成随机数
+            r1 = np.random.random(dim)
+            r2 = np.random.random(dim)
+            
+            # 更新速度
+            velocities[i] = (
+                w * velocities[i] +  # 惯性项
+                c1 * r1 * (personal_best_positions[i] - positions[i]) +  # 认知项
+                c2 * r2 * (global_best_position - positions[i])  # 社会项
+            )
+            
+            # 更新位置
+            positions[i] = positions[i] + velocities[i]
+            
+            # 边界处理：把超出边界的粒子拉回来
+            for d in range(dim):
+                if positions[i, d] < bounds[d][0]:
+                    positions[i, d] = bounds[d][0]
+                if positions[i, d] > bounds[d][1]:
+                    positions[i, d] = bounds[d][1]
+            
+            # 评估当前适应度
+            current_fitness = objective(positions[i])
+            
+            # 更新个体最优
+            if current_fitness < personal_best_fitness[i]:
+                personal_best_positions[i] = positions[i].copy()
+                personal_best_fitness[i] = current_fitness
+                
+                # 如果这是新的全局最优
+                if current_fitness < global_best_fitness:
+                    global_best_position = positions[i].copy()
+                    global_best_fitness = current_fitness
+        
+        # 每50轮输出一次进度
+        if iteration % 50 == 0:
+            print(f"迭代 {iteration}: 当前最优 = {global_best_fitness:.8f}")
+    
+    return global_best_position, global_best_fitness
+```
+
+这个版本大概60行代码，已经能跑了。核心就是两层循环：外层迭代，内层遍历每个粒子更新速度和位置。
+
+## 测试一下
+
+用几个经典的测试函数来验证代码是否正确：
+
+```python
+# 测试1：Sphere函数 f(x) = sum(x^2)
+# 全局最优在原点，最优值 = 0
+def sphere(x):
+    return np.sum(x**2)
+
+bounds = [(-10, 10)] * 10
+best_pos, best_fit = basic_pso(sphere, bounds, n_particles=50, max_iter=200)
+print(f"\nSphere函数测试:")
+print(f"找到的最优位置: {best_pos}")
+print(f"最优值: {best_fit}")
+
+# 测试2：Rosenbrock函数（香蕉函数）
+# 全局最优在 (1, 1, ..., 1)，最优值 = 0
+def rosenbrock(x):
+    return sum(100*(x[i+1] - x[i]**2)**2 + (1 - x[i])**2 for i in range(len(x)-1))
+
+bounds = [(-5, 10)] * 10
+best_pos, best_fit = basic_pso(rosenbrock, bounds, n_particles=50, max_iter=200)
+print(f"\nRosenbrock函数测试:")
+print(f"最优值: {best_fit}")
+```
+
+如果代码正确，Sphere函数应该能收敛到接近0的位置，Rosenbrock函数应该能收敛到接近1的位置。
+
+## 优化版本的PSO
+
+基础版本能工作，但在工程实践中，我们需要考虑更多细节。下面是一个功能更完整的版本，加入了速度限制、早停机制、收敛判断等功能：
 
 ```python
 import numpy as np
@@ -150,11 +334,11 @@ class ParticleSwarmOptimizer:
         self.max_iter = max_iter
         self.tol = tol
         
-        # 初始化速度限制
+        # 初始化速度限制（通常为搜索范围的10%-20%）
         self.v_max = np.array([(high - low) * 0.2 
                               for low, high in bounds])
         
-        # 历史记录
+        # 历史记录（用于可视化）
         self.gbest_history = []
         self.pbest_history = []
     
@@ -204,7 +388,7 @@ class ParticleSwarmOptimizer:
         # 更新速度
         self.velocities = self.w * self.velocities + cognitive + social
         
-        # 速度限制
+        # 速度限制（防止爆炸）
         for i in range(self.n_particles):
             for j in range(self.dim):
                 if self.velocities[i, j] > self.v_max[j]:
@@ -254,7 +438,7 @@ class ParticleSwarmOptimizer:
             if iteration % 50 == 0:
                 print(f"Iter {iteration}: gbest = {self.gbest_fitness:.8f}")
             
-            # 早停条件
+            # 早停条件：达到容忍度
             if self.gbest_fitness < self.tol:
                 print(f"Converged at iteration {iteration}")
                 break
@@ -262,266 +446,521 @@ class ParticleSwarmOptimizer:
         return self.gbest_position, self.gbest_fitness
 ```
 
-## 3.2 带有收敛分析的详细版本
+---
+
+# PSO参数设置：经验之谈
+
+## 惯性权重w
+
+惯性权重$w$是PSO最重要的参数，它控制了粒子的"探索-开发"平衡。
+
+**$w$ 大（接近1）**：粒子倾向于保持原有方向飞行，探索能力强，但收敛慢。适合多峰函数、需要全局搜索的问题。
+
+**$w$ 小（接近0）**：粒子更容易被吸引到好的位置，开发能力强，收敛快，但可能错过全局最优。适合单峰函数、问题结构已知的情况。
+
+常用的$w$设置策略：
+
+第一种是**固定值**。$w=0.729$是一个理论推导出来的稳定值，很多情况下效果不错。
+
+第二种是**线性递减**。开始时$w$较大（0.9）鼓励探索，随着迭代进行逐渐减小（到0.4）加速收敛：
 
 ```python
-class ConvergentPSO:
-    def __init__(self, objective, dim, bounds):
+w = w_max - (w_max - w_min) * iteration / max_iter
+```
+
+第三种是**自适应**。根据种群多样性动态调整。如果粒子太集中了，增加$w$；如果粒子太分散了，减小$w$。
+
+## 认知系数c1和社会系数c2
+
+$c_1$控制粒子"相信自己经验"的倾向，$c_2$控制粒子"相信群体智慧"的倾向。
+
+常见的配置：
+
+**$c_1 = c_2 = 1.49445$**：Clerc推导出保证收敛的理论最优值，最常用。
+
+**$c_1 = c_2 = 2.0$**：经典配置，各占50%，平衡型。
+
+**$c_1 > c_2$**：强调个体经验，探索能力强。
+
+**$c_1 < c_2$**：强调群体智慧，开发能力强。
+
+## 粒子数量
+
+粒子数量通常和问题维度、问题复杂度有关。
+
+对于**低维问题**（10维以下），20-30个粒子就够了。
+
+对于**中高维问题**（10-50维），30-50个粒子比较合适。
+
+对于**高维问题**（50维以上），可能需要50-100个粒子。
+
+有个经验公式：$n_{particles} = 10 \times \dim$，但最多不超过100。
+
+## 速度限制v_max
+
+$v_{max}$通常设为搜索范围的10%-20%。如果$v_{max}$太大，粒子会"飞过"最优区域；如果太小，粒子移动太慢，收敛时间太长。
+
+## 参数组合推荐
+
+针对不同类型的问题，我整理了一个参数推荐表：
+
+| 问题类型 | w | c1 | c2 | 拓扑 | 粒子数 |
+|---------|----|----|----|------|-------|
+| 单峰函数 | 0.729 | 1.494 | 1.494 | gbest | 30 |
+| 多峰函数 | 0.5-0.7 | 1.5 | 1.5 | ring | 50 |
+| 高维问题 | 0.6 | 1.5 | 1.5 | von_neumann | 10×dim |
+| 噪声环境 | 0.4 | 2.0 | 0.5 | ring | 100 |
+
+---
+
+# PSO变体：带收缩因子的PSO与量子PSO
+
+## 带收缩因子的PSO
+
+标准PSO有个问题：当参数设置不当时，粒子的速度可能会越来越大，最终"爆炸"飞遍整个搜索空间也找不到好解。
+
+Clerc和Kennedy在2002年提出了收缩因子（constriction factor）的方法来解决这个问题。核心思想是把速度更新公式改写成：
+
+$$
+\mathbf{v}_i(t+1) = \chi \left[ \mathbf{v}_i(t) + c_1 r_1 (\mathbf{p}_i - \mathbf{x}_i) + c_2 r_2 (\mathbf{g} - \mathbf{x}_i) \right]
+$$
+
+其中收缩因子$\chi$的计算公式是：
+
+$$
+\chi = \frac{2}{|2 - \phi - \sqrt{\phi^2 - 4\phi}|}, \quad \phi = c_1 + c_2 > 4
+$$
+
+常用的配置是$c_1 = c_2 = 2.05$，此时$\phi = 4.1$，$\chi \approx 0.729$。
+
+代码实现：
+
+```python
+class ConstrictionPSO:
+    """带收缩因子的PSO"""
+    
+    def __init__(self, objective, dim, bounds, n_particles=30, max_iter=1000):
         self.objective = objective
         self.dim = dim
         self.bounds = bounds
-        self.reset()
+        self.n_particles = n_particles
+        self.max_iter = max_iter
+        
+        # 收缩因子参数
+        self.phi = 4.1  # c1 + c2
+        self.chi = 2 / abs(2 - self.phi - (self.phi**2 - 4*self.phi)**0.5)
+        
+        # 学习因子
+        self.c1 = 2.05
+        self.c2 = 2.05
     
-    def reset(self):
-        """重置算法状态"""
-        bounds_array = np.array(self.bounds)
-        self.positions = np.random.uniform(
-            bounds_array[:, 0], bounds_array[:, 1], (30, self.dim)
-        )
-        self.velocities = np.zeros((30, self.dim))
-        self.fitness = np.array([self.objective(p) for p in self.positions])
-        self.pbest = self.positions.copy()
-        self.pbest_fit = self.fitness.copy()
+    def step(self):
+        """一步迭代"""
+        r1 = np.random.random((self.n_particles, self.dim))
+        r2 = np.random.random((self.n_particles, self.dim))
         
-        gbest_idx = np.argmin(self.fitness)
-        self.gbest = self.positions[gbest_idx].copy()
-        self.gbest_fit = self.fitness[gbest_idx]
-        
-        self.history = [self.gbest_fit]
-    
-    def step(self, w=0.729, c1=1.49445, c2=1.49445):
-        """单步迭代"""
-        r1 = np.random.random((30, self.dim))
-        r2 = np.random.random((30, self.dim))
-        
-        # 速度更新
-        self.velocities = (w * self.velocities + 
-            c1 * r1 * (self.pbest - self.positions) +
-            c2 * r2 * (self.gbest - self.positions)
+        # 速度更新（带收缩因子）
+        self.velocities = self.chi * (
+            self.velocities +
+            self.c1 * r1 * (self.pbest - self.positions) +
+            self.c2 * r2 * (self.gbest - self.positions)
         )
         
         # 位置更新
         self.positions += self.velocities
-        bounds = np.array(self.bounds)
-        self.positions = np.clip(self.positions, bounds[:, 0], bounds[:, 1])
-        
-        # 评估
-        self.fitness = np.array([self.objective(p) for p in self.positions])
-        
-        # 更新pbest
-        improved = self.fitness < self.pbest_fit
-        self.pbest[improved] = self.positions[improved]
-        self.pbest_fit[improved] = self.fitness[improved]
-        
-        # 更新gbest
-        gbest_idx = np.argmin(self.fitness)
-        if self.fitness[gbest_idx] < self.gbest_fit:
-            self.gbest = self.positions[gbest_idx].copy()
-            self.gbest_fit = self.fitness[gbest_idx]
-        
-        self.history.append(self.gbest_fit)
+        # ... 边界处理和评估 ...
 ```
 
----
+收缩因子的好处是不需要显式的速度限制，理论上保证收敛，更稳定。
 
-# 四、全局版与局部版PSO
+## 量子PSO
 
-## 4.1 gbest模型（全局版）
+标准PSO的粒子有确定的轨迹——给定当前位置、速度和历史最优，下一步的位置是确定的。这既是优点（可预测）也是缺点（可能陷入局部最优）。
 
-gbest模型使用全局最优粒子作为社会信息的来源：
+量子PSO（QPSO）引入了量子力学的思想：粒子的位置不再是确定的，而是在某个概率分布中存在。代表性的模型是Sun等人提出的"Delta势阱"模型。
 
-```python
-class GBestPSO(ParticleSwarmOptimizer):
-    """全局最优模型PSO"""
-    
-    def update_velocities(self):
-        r1 = np.random.random((self.n_particles, self.dim))
-        r2 = np.random.random((self.n_particles, self.dim))
-        
-        cognitive = self.c1 * r1 * (self.pbest_positions - self.positions)
-        social = self.c2 * r2 * (self.gbest_position - self.positions)
-        
-        self.velocities = self.w * self.velocities + cognitive + social
-        
-        # 限制速度
-        self.velocities = np.clip(self.velocities, -self.v_max, self.v_max)
-```
-
-**特点**：
-- 收敛速度快
-- 适合单峰问题
-- 容易陷入局部最优
-
-## 4.2 lbest模型（局部版）
-
-lbest模型使用环形拓扑结构，每个粒子只与邻居交换信息：
+核心思想：假设每个粒子在一个以自身历史最优pbest和全局最优gbest为焦点之一的势阱中运动，粒子的位置更新为：
 
 ```python
-class LBestPSO(ParticleSwarmOptimizer):
-    """局部最优模型PSO"""
+class QuantumPSO:
+    """量子粒子群优化"""
     
-    def __init__(self, *args, k=3, **kwargs):
+    def __init__(self, *args, beta=0.5, **kwargs):
         super().__init__(*args, **kwargs)
-        self.k = k  # 每个粒子的邻居数量（每侧）
-        self.lbest = np.zeros(self.dim)
+        self.beta = beta  # 扩张-收缩因子
     
-    def initialize_topology(self):
-        """初始化环形拓扑"""
-        self.neighbors = {}
+    def update_quantum_position(self, i):
+        """量子位置更新"""
+        phi1 = np.random.random(self.dim)
+        phi2 = np.random.random(self.dim)
+        
+        # 吸引中心点
+        p = (phi1 * self.pbest_positions[i] + phi2 * self.gbest_position) / (phi1 + phi2)
+        
+        # 量子旋转
+        u = np.random.random(self.dim)
+        
+        # Delta势阱中的位置采样
+        new_position = p + self.beta * np.abs(self.positions[i] - p) * np.log(1/u)
+        
+        return new_position
+    
+    def step(self):
+        """量子PSO步骤"""
         for i in range(self.n_particles):
-            neighbors = [(i + j) % self.n_particles for j in range(-self.k, self.k+1)]
-            self.neighbors[i] = neighbors
+            # 量子位置更新
+            self.positions[i] = self.update_quantum_position(i)
+        
+        # 评估并更新pbest和gbest
+        self.evaluate()
+```
+
+QPSO的优势是搜索范围更广，更容易跳出局部最优。但收敛速度通常比标准PSO慢。
+
+---
+
+# PSO的应用场景
+
+## 函数优化
+
+这是PSO最直接的应用。几乎所有连续函数的优化问题都可以用PSO试试。
+
+常用测试函数：
+
+```python
+# Sphere函数 - 简单的单峰函数
+def sphere(x):
+    return np.sum(x**2)
+
+# Rastrigin函数 - 多峰函数，有大量局部最优
+def rastrigin(x):
+    A = 10
+    n = len(x)
+    return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
+
+# Ackley函数 - 多峰，广泛用于测试全局优化算法
+def ackley(x):
+    a = 20
+    b = 0.2
+    c = 2 * np.pi
+    sum1 = np.sum(x**2)
+    sum2 = np.sum(np.cos(c * x))
+    term1 = -a * np.exp(-b * np.sqrt(sum1 / len(x)))
+    term2 = -np.exp(sum2 / len(x))
+    return term1 + term2 + a + np.e
+
+# Griewank函数 - 多峰，有大量局部最优
+def griewank(x):
+    part1 = np.sum(x**2) / 4000
+    part2 = np.prod(np.cos(x / np.sqrt(np.arange(1, len(x)+1))))
+    return part1 - part2 + 1
+```
+
+## 神经网络训练
+
+PSO可以用来训练神经网络的权重，比梯度下降更不容易陷入局部最优，但计算量通常更大。
+
+```python
+class PSOTrainedNN:
+    def __init__(self, layer_sizes):
+        """
+        layer_sizes: 各层神经元数量，如 [784, 128, 64, 10]
+        """
+        self.layer_sizes = layer_sizes
+        self.dim = sum(
+            layer_sizes[i] * layer_sizes[i+1] + layer_sizes[i+1]
+            for i in range(len(layer_sizes)-1)
+        )
     
-    def find_lbest(self):
-        """找到每个粒子的局部最优"""
+    def encode_weights(self, flat_weights):
+        """将扁平化的权重向量解码为网络权重矩阵列表"""
+        weights = []
+        start = 0
+        for i in range(len(self.layer_sizes)-1):
+            rows = self.layer_sizes[i+1]
+            cols = self.layer_sizes[i]
+            # 权重矩阵
+            w_size = rows * cols
+            W = flat_weights[start:start+w_size].reshape(rows, cols)
+            start += w_size
+            # 偏置向量
+            b = flat_weights[start:start+rows]
+            start += rows
+            weights.append((W, b))
+        return weights
+    
+    def fitness(self, flat_weights, X, y):
+        """计算适应度（这里是分类误差，越小越好）"""
+        weights = self.encode_weights(flat_weights)
+        # 前向传播
+        x = X
+        for W, b in weights:
+            x = x @ W.T + b
+            x = np.maximum(0, x)  # ReLU激活
+        predictions = np.argmax(x, axis=1)
+        accuracy = np.mean(predictions == y)
+        return 1 - accuracy  # 转换为最小化问题
+    
+    def train(self, X_train, y_train, n_particles=50, max_iter=200):
+        """用PSO训练神经网络"""
+        optimizer = ParticleSwarmOptimizer(
+            objective=lambda w: self.fitness(w, X_train, y_train),
+            dim=self.dim,
+            bounds=[(-1, 1)] * self.dim,
+            n_particles=n_particles,
+            max_iter=max_iter
+        )
+        best_weights, best_fitness = optimizer.run()
+        return best_weights, best_fitness
+```
+
+## 路径规划
+
+在机器人导航、游戏AI、物流配送等领域，PSO常被用于路径优化。
+
+```python
+def path_planning_pso(start, goal, obstacles, n_waypoints=10, n_particles=50):
+    """
+    简单路径规划示例
+    
+    参数:
+        start: 起点坐标
+        goal: 终点坐标
+        obstacles: 障碍物列表，每个障碍物是 (中心, 半径) 的元组
+        n_waypoints: 路径中间点数量
+        n_particles: 粒子数量
+    """
+    dim = 2 * n_waypoints  # x和y坐标
+    
+    def path_cost(path):
+        """计算路径代价：距离 + 障碍物惩罚"""
+        total_distance = 0
+        prev_point = start
+        
+        for point in path:
+            total_distance += np.linalg.norm(point - prev_point)
+            prev_point = point
+        total_distance += np.linalg.norm(goal - prev_point)
+        
+        # 障碍物惩罚
+        penalty = 0
+        for point in path:
+            for obs_center, obs_radius in obstacles:
+                dist = np.linalg.norm(point - obs_center)
+                if dist < obs_radius:
+                    penalty += (obs_radius - dist) * 100
+        
+        return total_distance + penalty
+    
+    def decode(particle):
+        """将粒子解码为路径"""
+        path = []
+        for i in range(n_waypoints):
+            t = (i + 1) / (n_waypoints + 1)
+            # 在起点和终点之间线性插值
+            base = start + t * (goal - start)
+            # 加上粒子的偏移
+            point = base + particle[2*i:2*i+2] * 10  # 10是搜索范围
+            path.append(point)
+        return np.array(path)
+    
+    bounds = [(-5, 5)] * dim
+    optimizer = ParticleSwarmOptimizer(
+        objective=lambda p: path_cost(decode(p)),
+        dim=dim,
+        bounds=bounds,
+        n_particles=n_particles
+    )
+    best_particle, _ = optimizer.run()
+    return decode(best_particle)
+```
+
+## 超参数优化
+
+深度学习模型的超参数调优是个大麻烦。PSO可以作为贝叶斯优化的替代方案，尤其在超参数空间维度不高但评估代价大的场景。
+
+```python
+class PSOHyperparameterTuner:
+    def __init__(self, train_data, val_data, model_fn):
+        """
+        train_data: 训练数据
+        val_data: 验证数据
+        model_fn: 接受超参数字典，返回训练好的模型
+        """
+        self.train_data = train_data
+        self.val_data = val_data
+        self.model_fn = model_fn
+    
+    def define_search_space(self):
+        """定义超参数搜索空间"""
+        return {
+            'learning_rate': (1e-4, 1e-2),      # 连续
+            'batch_size': [16, 32, 64, 128],    # 离散
+            'hidden_units': (32, 256),
+            'dropout_rate': (0.0, 0.5),
+            'num_layers': [2, 3, 4],
+        }
+    
+    def fitness(self, params):
+        """评估超参数配置"""
+        model = self.model_fn(params)
+        model.fit(self.train_data[0], self.train_data[1], epochs=10, verbose=0)
+        _, val_loss = model.evaluate(self.val_data[0], self.val_data[1])
+        return val_loss
+    
+    def tune(self, n_particles=30, max_iter=50):
+        """运行超参数优化"""
+        space = self.define_search_space()
+        # 编码为连续空间 [0, 1]
+        dim = len(space)
+        
+        def encoded_fitness(encoded):
+            # 解码
+            params = {}
+            idx = 0
+            for name, spec in space.items():
+                if isinstance(spec, tuple):  # 连续
+                    params[name] = spec[0] + encoded[idx] * (spec[1] - spec[0])
+                else:  # 离散
+                    params[name] = spec[int(encoded[idx] * len(spec))]
+                idx += 1
+            return self.fitness(params)
+        
+        bounds = [(0, 1)] * dim
+        optimizer = ParticleSwarmOptimizer(
+            objective=encoded_fitness,
+            dim=dim,
+            bounds=bounds,
+            n_particles=n_particles,
+            max_iter=max_iter
+        )
+        best_encoded, _ = optimizer.run()
+        
+        # 解码最优参数
+        params = {}
+        idx = 0
+        for name, spec in space.items():
+            if isinstance(spec, tuple):
+                params[name] = spec[0] + best_encoded[idx] * (spec[1] - spec[0])
+            else:
+                params[name] = spec[int(best_encoded[idx] * len(spec))]
+            idx += 1
+        return params
+```
+
+---
+
+# 约束优化中的PSO
+
+实际工程问题很少是没有约束的。压力容器设计、弹簧参数优化、工程结构设计……这些都有各种约束条件。
+
+## 罚函数法
+
+最简单的方法是把约束违反程度加到目标函数上：
+
+```python
+class ConstrainedPSO(ParticleSwarmOptimizer):
+    def __init__(self, objective, constraints, *args, penalty_coef=1000, **kwargs):
+        super().__init__(objective, *args, **kwargs)
+        self.constraints = constraints
+        self.penalty_coef = penalty_coef
+    
+    def evaluate_constraints(self, x):
+        """评估约束违反程度"""
+        violations = {'inequality': [], 'equality': []}
+        
+        # 不等式约束 g(x) >= 0
+        for g in self.constraints.get('ineq', []):
+            value = g(x)
+            violations['inequality'].append(max(0, -value))
+        
+        # 等式约束 h(x) = 0
+        for h in self.constraints.get('eq', []):
+            value = abs(h(x))
+            violations['equality'].append(value)
+        
+        return violations
+    
+    def constrained_objective(self, x):
+        """带惩罚的目标函数"""
+        obj = self.objective(x)
+        violations = self.evaluate_constraints(x)
+        
+        penalty = self.penalty_coef * (
+            sum(violations['inequality']) +
+            sum(violations['equality'])
+        )
+        return obj + penalty
+    
+    def evaluate(self):
+        """重写的评估方法"""
         for i in range(self.n_particles):
-            neighbor_fitness = self.pbest_fitness[self.neighbors[i]]
-            best_neighbor = self.neighbors[i][np.argmin(neighbor_fitness)]
-            self.lbest = self.pbest_positions[best_neighbor]
-    
-    def update_velocities(self):
-        self.find_lbest()
-        
-        r1 = np.random.random((self.n_particles, self.dim))
-        r2 = np.random.random((self.n_particles, self.dim))
-        
-        cognitive = self.c1 * r1 * (self.pbest_positions - self.positions)
-        
-        # 使用lbest替代gbest
-        lbest_expanded = np.array([self.pbest_positions[self.neighbors[i][
-            np.argmin(self.pbest_fitness[self.neighbors[i]])]]
-            for i in range(self.n_particles)])
-        social = self.c2 * r2 * (lbest_expanded - self.positions)
-        
-        self.velocities = self.w * self.velocities + cognitive + social
-        self.velocities = np.clip(self.velocities, -self.v_max, self.v_max)
+            fitness = self.constrained_objective(self.positions[i])
+            self.fitness[i] = fitness
+            
+            if fitness < self.pbest_fitness[i]:
+                self.pbest_positions[i] = self.positions[i].copy()
+                self.pbest_fitness[i] = fitness
+                
+                if fitness < self.gbest_fitness:
+                    self.gbest_position = self.positions[i].copy()
+                    self.gbest_fitness = fitness
 ```
 
-**拓扑结构类型**：
+## 可行性规则
 
+罚函数法有个问题：惩罚系数不好确定。太大了可能导致搜索只关注可行性而忽略最优性，太小了又可能找到不可行的解。
+
+一种改进方法是"可行性规则"：优先选择可行解，在可行解之间比较目标函数值。
+
+```python
+def is_feasible(x, constraints, tolerance=1e-6):
+    """检查解是否可行"""
+    for g in constraints.get('ineq', []):
+        if g(x) < -tolerance:
+            return False
+    for h in constraints.get('eq', []):
+        if abs(h(x)) > tolerance:
+            return False
+    return True
+
+def constraint_violation(x, constraints):
+    """计算总约束违反度"""
+    total = 0
+    for g in constraints.get('ineq', []):
+        total += max(0, -g(x))
+    for h in constraints.get('eq', []):
+        total += abs(h(x))
+    return total
 ```
-环形拓扑（lbest k=1）:
-    ○——○——○——○——○——○——○
-    ↑__________________|
-
-网格拓扑:
-    ○ ○ ○
-    ○ ● ○
-    ○ ○ ○
-
-冯诺依曼拓扑:
-    ○ ○ ○
-    ○ ● ○
-    ○ ○ ○
-```
-
-## 4.3 拓扑结构对比
-
-| 拓扑类型 | 收敛速度 | 全局搜索 | 稳定性 |
-|---------|---------|---------|--------|
-| gbest | 最快 | 最弱 | 较差 |
-| Ring | 较慢 | 最强 | 较好 |
-| Grid | 中等 | 中等 | 中等 |
-| Von Neumann | 中等 | 较强 | 较好 |
-
-> [!note]
-> 局部版PSO虽然收敛速度较慢，但在复杂多峰问题上表现出更强的全局搜索能力，能够有效避免早熟收敛。
 
 ---
 
-# 五、惯性权重与学习因子
+# 离散PSO：用于组合优化问题
 
-## 5.1 线性递减惯性权重
+PSO天生是为连续优化设计的，但实际问题中有很多离散、组合优化的问题：旅行商问题（TSP）、调度问题、特征选择问题……
 
-Shi和Eberhart提出的线性递减策略：
+## 二进制PSO
 
-```python
-class LinearDecreasingWPSO(ParticleSwarmOptimizer):
-    def __init__(self, *args, w_max=0.9, w_min=0.4, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.w_max = w_max
-        self.w_min = w_min
-    
-    def get_inertia_weight(self, iteration):
-        """线性递减"""
-        return self.w_max - (self.w_max - self.w_min) * iteration / self.max_iter
-```
-
-**数学表达**：
-
-$$
-w(t) = w_{\max} - \frac{w_{\max} - w_{\min}}{T_{\max}} \cdot t
-$$
-
-## 5.2 非线性递减惯性权重
-
-```python
-class NonLinearWPSO(ParticleSwarmOptimizer):
-    def get_inertia_weight(self, iteration):
-        t = iteration / self.max_iter
-        # 指数递减
-        return 0.9 * 0.99 ** iteration
-```
-
-## 5.3 自适应惯性权重
-
-```python
-class AdaptiveWPSO(ParticleSwarmOptimizer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.w = 0.9  # 初始值
-        self.fitness_improvement = []
-    
-    def update_adaptive_w(self, iteration):
-        """基于适应度改进率的自适应调整"""
-        if len(self.history) >= 10:
-            recent_improvement = self.history[-1] - self.history[-10]
-            if recent_improvement < 1e-6:
-                self.w *= 1.1  # 增加探索
-            elif recent_improvement > 0.1:
-                self.w *= 0.9  # 增加开发
-```
-
-## 5.4 学习因子的影响
-
-| 参数配置 | 特性 | 适用场景 |
-|---------|------|---------|
-| $c_1 > c_2$ | 强调个体经验 | 探索阶段 |
-| $c_1 < c_2$ | 强调群体经验 | 开发阶段 |
-| $c_1 = c_2$ | 平衡型 | 通用 |
-| $c_1 = c_2 = 1.49445$ | Clerc标准配置 | 理论最优 |
-
-**Clerc建议的标准参数**：
-
-$$
-c_1 = c_2 = \frac{1}{2} + \ln(2) \approx 1.19345
-$$
-
-> [!tip]
-> 学习因子的自适应调整可以帮助PSO在探索和开发之间保持平衡。一种常见策略是在迭代早期增大$c_1$以鼓励探索，后期增大$c_2$以加速收敛。
-
----
-
-# 六、离散与二进制PSO
-
-## 6.1 二进制PSO
-
-Kennedy和Eberhart于1997年提出的离散版本：
+Kennedy和Eberhart在1997年提出了二进制PSO，用于离散/组合优化问题。核心思想是把位置解释为0/1的概率：
 
 ```python
 class BinaryPSO:
-    def __init__(self, objective, dim, n_particles=30):
+    """二进制PSO：适用于离散优化"""
+    
+    def __init__(self, objective, dim, n_particles=30, max_iter=100):
         self.objective = objective
         self.dim = dim
         self.n_particles = n_particles
+        self.max_iter = max_iter
     
     def sigmoid(self, v):
-        """Sigmoid函数"""
+        """Sigmoid函数：将速度映射到[0,1]"""
         return 1 / (1 + np.exp(-np.clip(v, -500, 500)))
     
     def initialize(self):
         self.positions = np.random.randint(0, 2, (self.n_particles, self.dim))
-        self.velocities = np.random.uniform(-6, 6, (self.n_particles, self.dim))
+        self.velocities = np.random.uniform(-4, 4, (self.n_particles, self.dim))
         self.fitness = np.array([self.objective(p) for p in self.positions])
         self.pbest = self.positions.copy()
         self.pbest_fit = self.fitness.copy()
@@ -531,17 +970,18 @@ class BinaryPSO:
         self.gbest_fit = self.fitness[gbest_idx]
     
     def update_velocities(self, c1=2, c2=2):
+        """速度更新（与连续版相同）"""
         r1 = np.random.random((self.n_particles, self.dim))
         r2 = np.random.random((self.n_particles, self.dim))
         
-        self.velocities += (c1 * r1 * (self.pbest - self.positions) +
-                           c2 * r2 * (self.gbest - self.positions))
-        
-        # 速度限制
+        self.velocities += (
+            c1 * r1 * (self.pbest - self.positions) +
+            c2 * r2 * (self.gbest - self.positions)
+        )
         self.velocities = np.clip(self.velocities, -4, 4)
     
     def update_positions(self):
-        """位置（二进制化）"""
+        """位置更新：用sigmoid将速度转为概率"""
         probability = self.sigmoid(self.velocities)
         self.positions = (np.random.random((self.n_particles, self.dim)) < probability).astype(int)
     
@@ -561,2396 +1001,534 @@ class BinaryPSO:
             self.gbest_fit = self.fitness[gbest_idx]
 ```
 
-## 6.2 离散PSO（整数编码）
+## 离散PSO示例：0-1背包问题
 
 ```python
-class DiscretePSO:
-    """离散变量PSO"""
+def knapsack_pso(values, weights, capacity, n_particles=30, max_iter=200):
+    """
+    用PSO解决0-1背包问题
     
-    def __init__(self, objective, dim, n_categories):
-        self.objective = objective
-        self.dim = dim
-        self.n_categories = n_categories  # 每个维度的离散值数量
+    参数:
+        values: 物品价值列表
+        weights: 物品重量列表
+        capacity: 背包容量
+    """
+    n_items = len(values)
     
-    def initialize(self):
-        self.positions = np.random.randint(0, self.n_categories, 
-                                          (self.n_particles, self.dim))
-        self.velocities = np.random.random((self.n_particles, self.dim))
-        # ... 初始化其他属性 ...
+    def objective(x):
+        """目标函数：最大化总价值，同时惩罚超重"""
+        total_value = np.sum(x * values)
+        total_weight = np.sum(x * weights)
+        if total_weight > capacity:
+            return -(total_value - (total_weight - capacity) * 100)  # 惩罚
+        return -total_value  # 最小化问题，所以取负
     
-    def update_positions(self):
-        """基于概率的位置更新"""
-        for i in range(self.n_particles):
-            for d in range(self.dim):
-                if self.velocities[i, d] > 0.5:
-                    self.positions[i, d] = self.pbest[i, d]
-                if self.velocities[i, d] > 0.75:
-                    self.positions[i, d] = self.gbest[d]
-```
+    bounds = [(0, 1)] * n_items
+    optimizer = BinaryPSO(objective, n_items, n_particles, max_iter)
+    optimizer.initialize()
+    
+    for _ in range(max_iter):
+        optimizer.step()
+    
+    best_solution = optimizer.gbest
+    best_value = np.sum(best_solution * values)
+    best_weight = np.sum(best_solution * weights)
+    
+    return best_solution, best_value, best_weight
 
-## 6.3 排列问题PSO
+# 测试
+values = [60, 100, 120, 80, 50, 70, 90, 110]
+weights = [10, 20, 30, 15, 10, 25, 35, 18]
+capacity = 100
 
-```python
-class PermutationPSO:
-    """用于旅行商等排列问题的PSO"""
-    
-    def __init__(self, objective, n_cities):
-        self.objective = objective
-        self.n_cities = n_cities
-    
-    def initialize(self):
-        """随机排列初始化"""
-        self.positions = np.array([
-            np.random.permutation(self.n_cities) 
-            for _ in range(self.n_particles)
-        ])
-        self.pbest = self.positions.copy()
-        self.gbest = self.positions[0].copy()
-    
-    def crossover_position(self, p1, p2):
-        """位置交叉产生新排列"""
-        n = len(p1)
-        # 随机选择一段保留
-        start, end = sorted(random.sample(range(n), 2))
-        
-        child = np.zeros(n, dtype=int)
-        child[start:end] = p1[start:end]
-        
-        # 填补剩余位置
-        remaining = [city for city in p2 if city not in child]
-        idx = 0
-        for i in range(n):
-            if child[i] == 0:
-                child[i] = remaining[idx]
-                idx += 1
-        
-        return child
+solution, value, weight = knapsack_pso(values, weights, capacity)
+print(f"选择的物品: {np.where(solution == 1)[0]}")
+print(f"总价值: {value}, 总重量: {weight}")
 ```
 
 ---
 
-# 七、PSO变体与改进
+# PSO调参实战：如何找到最优参数组合？
 
-## 7.1 协同PSO
+## 手动调参的经验法则
 
-```python
-class CooperativePSO(ParticleSwarmOptimizer):
-    """
-    协同PSO：将高维问题分解为多个低维子问题
-    """
-    def __init__(self, *args, sub_dim=5, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.sub_dim = sub_dim
-        self.n_sub_swarms = self.dim // sub_dim
-    
-    def evaluate_cooperative(self, full_position):
-        """评估完整解"""
-        return self.objective(full_position)
-    
-    def step(self):
-        """分阶段更新"""
-        # 更新每个子种群
-        for sub_idx in range(self.n_sub_swarms):
-            sub_start = sub_idx * self.sub_dim
-            sub_end = sub_start + self.sub_dim
-            
-            # 只更新当前维度
-            # ...
-```
+如果你不想搞得太复杂，按照以下经验法则来设置参数，通常能获得不错的效果：
 
-## 7.2 混沌PSO
+**第一步：先用默认参数跑一遍**
+
+设置$w=0.729, c_1=1.49445, c_2=1.49445, n_{particles}=30$，看看效果如何。如果收敛太快（早熟），提高$w$；如果收敛太慢，降低$w$。
+
+**第二步：根据问题类型调整**
+
+单峰函数（只有一个最优解）：$w$可以小一些，0.5-0.7，加快收敛。
+
+多峰函数（多个局部最优）：$w$要大一些，0.7-0.9，增强探索。
+
+**第三步：平衡认知和社会**
+
+$c_1 > c_2$（强调探索）：如果发现种群多样性下降，早熟风险高。
+
+$c_1 < c_2$（强调开发）：如果收敛太慢，可以试试。
+
+## 网格搜索找最优参数
+
+如果你想系统性地找最优参数，可以用网格搜索：
 
 ```python
-import numpy as np
+from itertools import product
 
-class ChaoticPSO(ParticleSwarmOptimizer):
-    """
-    使用混沌序列代替随机数
-    """
-    def __init__(self, *args, chaos_type='logistic', **kwargs):
-        super().__init__(*args, **kwargs)
-        self.chaos_type = chaos_type
-        self.chaos_param = 0.7  # 混沌参数
+def grid_search_pso(objective, dim, bounds, n_eval_per_config=10):
+    """网格搜索最优PSO参数"""
     
-    def logistic_map(self, x):
-        """Logistic混沌映射"""
-        return self.chaos_param * x * (1 - x)
+    # 定义参数网格
+    w_values = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    c1_values = [1.0, 1.5, 2.0]
+    c2_values = [1.0, 1.5, 2.0]
     
-    def generate_chaos(self, n):
-        """生成混沌序列"""
-        x = np.random.random()
-        sequence = []
-        for _ in range(n):
-            x = self.logistic_map(x)
-            sequence.append(x)
-        return np.array(sequence)
+    best_fitness = float('inf')
+    best_params = None
+    results = []
     
-    def step(self):
-        """使用混沌序列更新"""
-        # 生成混沌序列
-        chaos_r1 = self.generate_chaos(self.n_particles * self.dim)
-        chaos_r2 = self.generate_chaos(self.n_particles * self.dim)
+    for w, c1, c2 in product(w_values, c1_values, c2_values):
+        fitnesses = []
         
-        r1 = chaos_r1.reshape(self.n_particles, self.dim)
-        r2 = chaos_r2.reshape(self.n_particles, self.dim)
-        
-        # 更新速度
-        self.velocities = (self.w * self.velocities +
-            self.c1 * r1 * (self.pbest_positions - self.positions) +
-            self.c2 * r2 * (self.gbest_position - self.positions)
-        )
-        
-        # ...
-```
-
-## 7.3 量子PSO
-
-```python
-class QuantumPSO(ParticleSwarmOptimizer):
-    """
-    量子粒子群优化
-    引入量子力学原理
-    """
-    def __init__(self, *args, beta=0.5, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.beta = beta  # 收缩-扩张因子
-    
-    def update_quantum_position(self, i):
-        """量子位置更新"""
-        phi1 = np.random.random(self.dim)
-        phi2 = np.random.random(self.dim)
-        
-        p = (phi1 * self.pbest_positions[i] + phi2 * self.gbest_position) / (phi1 + phi2)
-        
-        # 量子旋转
-        u = np.random.random(self.dim)
-        
-        new_position = p + self.beta * np.abs(self.positions[i] - p) * np.log(1/u)
-        
-        return new_position
-    
-    def step(self):
-        """量子PSO步骤"""
-        for i in range(self.n_particles):
-            # 量子位置更新
-            self.positions[i] = self.update_quantum_position(i)
-        
-        # 评估并更新pbest和gbest
-        self.evaluate()
-```
-
-## 7.4 多目标PSO
-
-```python
-class MultiObjectivePSO:
-    """
-    多目标粒子群优化
-    """
-    def __init__(self, objectives, dim, bounds, n_particles=100):
-        self.objectives = objectives
-        self.dim = dim
-        self.bounds = bounds
-        self.n_particles = n_particles
-    
-    def dominates(self, x1, x2):
-        """判断x1是否支配x2"""
-        f1 = np.array([f(x1) for f in self.objectives])
-        f2 = np.array([f(x2) for f in self.objectives])
-        return all(f1 <= f2) and any(f1 < f2)
-    
-    def update_leader_archive(self):
-        """更新非支配解存档"""
-        self.archive = []
-        for particle in self.particles:
-            is_dominated = False
-            to_remove = []
-            
-            for i, archived in enumerate(self.archive):
-                if self.dominates(particle, archived):
-                    to_remove.append(i)
-                elif self.dominates(archived, particle):
-                    is_dominated = True
-            
-            if not is_dominated:
-                self.archive.append(particle)
-                for i in reversed(to_remove):
-                    self.archive.pop(i)
-    
-    def select_leader(self):
-        """从存档中选择领导者（拥挤距离）"""
-        # 拥挤距离计算...
-        return random.choice(self.archive)
-```
-
----
-
-# 八、收敛性分析
-
-## 8.1 稳定性分析
-
-PSO的收敛性可通过分析速度更新公式的稳定性来确定。将速度更新公式简化为：
-
-$$
-v_i(t+1) = w \cdot v_i(t) + c_1 \cdot r_1 \cdot (p_i - x_i(t)) + c_2 \cdot r_2 \cdot (g - x_i(t))
-$$
-
-**收敛条件**（Clerc & Kennedy, 2002）：
-
-$$
-| w - 1 | < \sqrt{c_1 \cdot p + c_2 \cdot q}
-$$
-
-其中$p, q$为认知和社会影响的权重。
-
-## 8.2 参数约束
-
-为保证算法收敛，参数需满足：
-
-$$
-w < \frac{3 - \sqrt{5}}{2} \approx 0.382
-$$
-
-或采用收缩-扩张因子$\chi$：
-
-$$
-\chi = \frac{2}{|2 - \phi - \sqrt{\phi^2 - 4\phi}|}, \quad \phi = c_1 + c_2 > 4
-$$
-
-## 8.3 收敛速度估计
-
-```python
-class ConvergenceAnalyzer:
-    def analyze(self, history):
-        """分析PSO收敛行为"""
-        history = np.array(history)
-        
-        # 计算收敛代数
-        converged_gen = self.find_convergence_generation(history)
-        
-        # 计算收敛率
-        convergence_rate = self.calculate_convergence_rate(history)
-        
-        # 分析探索-开发平衡
-        exploration_score = self.estimate_exploration(history)
-        
-        return {
-            'converged_at': converged_gen,
-            'convergence_rate': convergence_rate,
-            'exploration_score': exploration_score
-        }
-```
-
----
-
-# 九、应用实例
-
-## 9.1 函数优化
-
-```python
-def optimize_function():
-    """使用PSO优化测试函数"""
-    # Sphere函数
-    sphere = lambda x: sum(x**2)
-    
-    optimizer = ParticleSwarmOptimizer(
-        objective=sphere,
-        dim=10,
-        bounds=[(-10, 10)] * 10,
-        n_particles=30,
-        max_iter=1000
-    )
-    
-    best_pos, best_fit = optimizer.run()
-    print(f"Best position: {best_pos}")
-    print(f"Best fitness: {best_fit}")
-    
-    return best_pos, best_fit
-
-# Rosenbrock函数
-def rosenbrock(x):
-    return sum(100 * (x[i+1] - x[i]**2)**2 + (x[i] - 1)**2 for i in range(len(x)-1))
-
-# Ackley函数
-def ackley(x):
-    return -20 * np.exp(-0.2 * np.sqrt(np.mean(x**2))) - \
-           np.exp(np.mean(np.cos(2*np.pi*x))) + 20 + np.e
-```
-
-## 9.2 神经网络训练
-
-```python
-class PSOTrainableNN:
-    def __init__(self, nn_architecture):
-        self.nn = nn_architecture
-        self.dim = sum(w.size for w in nn.get_weights())
-    
-    def fitness_function(self, weights_flat):
-        """使用扁平化权重向量作为PSO的位置"""
-        self.nn.set_weights(weights_flat)
-        predictions = self.nn.predict(X_train)
-        loss = self.nn.compute_loss(predictions, y_train)
-        return loss
-    
-    def train(self, X_train, y_train, n_particles=30, max_iter=500):
-        self.nn.set_training_data(X_train, y_train)
-        
-        optimizer = ParticleSwarmOptimizer(
-            objective=self.fitness_function,
-            dim=self.dim,
-            bounds=[(-1, 1)] * self.dim,
-            n_particles=n_particles,
-            max_iter=max_iter
-        )
-        
-        best_weights, best_loss = optimizer.run()
-        self.nn.set_weights(best_weights)
-        
-        return best_loss
-```
-
-## 9.3 聚类优化
-
-```python
-class PSOKMeans:
-    def __init__(self, n_clusters, max_iter=100):
-        self.n_clusters = n_clusters
-        self.max_iter = max_iter
-    
-    def fitness(self, centers, X):
-        """计算聚类质量（簇内距离和）"""
-        labels = self.assign_labels(centers, X)
-        distance = 0
-        for k in range(self.n_clusters):
-            cluster_points = X[labels == k]
-            if len(cluster_points) > 0:
-                distance += np.sum((cluster_points - centers[k])**2)
-        return distance
-    
-    def pso_optimize(self, X):
-        dim = X.shape[1] * self.n_clusters
-        
-        optimizer = ParticleSwarmOptimizer(
-            objective=lambda c: self.fitness(c.reshape(self.n_clusters, -1), X),
-            dim=dim,
-            bounds=[(X.min(), X.max())] * dim,
-            n_particles=30,
-            max_iter=self.max_iter
-        )
-        
-        best_centers = optimizer.run()[0]
-        return best_centers.reshape(self.n_clusters, -1)
-```
-
-# 十、PSO的理论深度分析
-
-## 10.1 动力学系统视角
-
-### 10.1.1 PSO作为非线性动力学系统
-
-PSO的更新公式可以被建模为一个高维非线性离散动力系统：
-
-$$
-\mathbf{x}_i(t+1) = f(\mathbf{x}_i(t), \mathbf{v}_i(t), \mathbf{p}_i, \mathbf{g})
-$$
-
-**固定点分析**：当算法收敛时，有：
-
-$$
-\mathbf{x}^* = \mathbf{x}^* + w \cdot \mathbf{v}^* + c_1 r_1 (\mathbf{p}_i - \mathbf{x}^*) + c_2 r_2 (\mathbf{g} - \mathbf{x}^*)
-$$
-
-这要求$\mathbf{v}^* = \mathbf{0}$，即速度收敛到零。
-
-### 10.1.2 相轨迹分析
-
-```python
-class PhaseTrajectoryAnalyzer:
-    """分析PSO粒子的相轨迹"""
-    
-    def __init__(self, optimizer):
-        self.optimizer = optimizer
-        self.position_history = []
-        self.velocity_history = []
-    
-    def track_trajectory(self, particle_idx, steps=100):
-        """跟踪单个粒子的相轨迹"""
-        self.optimizer.reset()
-        
-        for _ in range(steps):
-            self.position_history.append(
-                self.optimizer.positions[particle_idx].copy()
-            )
-            self.velocity_history.append(
-                self.optimizer.velocities[particle_idx].copy()
-            )
-            self.optimizer.step()
-        
-        return np.array(self.position_history), np.array(self.velocity_history)
-    
-    def plot_phase_diagram(self):
-        """绘制相图"""
-        import matplotlib.pyplot as plt
-        
-        pos = np.array(self.position_history)
-        vel = np.array(self.velocity_history)
-        
-        # 使用前两个维度
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-        
-        # 位置-时间图
-        axes[0, 0].plot(pos[:, 0], pos[:, 1])
-        axes[0, 0].set_xlabel('x1')
-        axes[0, 0].set_ylabel('x2')
-        axes[0, 0].set_title('Position Trajectory')
-        
-        # 速度-时间图
-        axes[0, 1].plot(vel[:, 0], vel[:, 1])
-        axes[0, 1].set_xlabel('v1')
-        axes[0, 1].set_ylabel('v2')
-        axes[0, 1].set_title('Velocity Trajectory')
-        
-        # 速度范数衰减
-        vel_norms = np.linalg.norm(vel, axis=1)
-        axes[1, 0].plot(vel_norms)
-        axes[1, 0].set_xlabel('Iteration')
-        axes[1, 0].set_ylabel('||v||')
-        axes[1, 0].set_title('Velocity Magnitude Decay')
-        
-        # 相轨迹（速度vs位置）
-        axes[1, 1].scatter(pos[:, 0], vel[:, 0], c=range(len(pos)))
-        axes[1, 1].set_xlabel('Position x1')
-        axes[1, 1].set_ylabel('Velocity v1')
-        axes[1, 1].set_title('Phase Plot')
-        
-        plt.tight_layout()
-        plt.show()
-```
-
-### 10.1.3 吸引域分析
-
-吸引域（Basin of Attraction）定义了初始条件最终收敛到的吸引子位置：
-
-```python
-class BasinOfAttractionAnalyzer:
-    """
-    分析PSO的吸引域
-    """
-    def __init__(self, optimizer, objective):
-        self.optimizer = optimizer
-        self.objective = objective
-    
-    def sample_attraction_basin(self, n_samples=1000):
-        """采样吸引域"""
-        basins = {}
-        
-        for _ in range(n_samples):
-            # 随机初始化
-            self.optimizer.reset()
-            initial_pos = self.optimizer.positions[0].copy()
-            
-            # 运行到收敛
-            for _ in range(self.optimizer.max_iter):
-                self.optimizer.step()
-            
-            # 记录收敛位置
-            final_pos = tuple(self.optimizer.gbest_position.round(4))
-            if final_pos not in basins:
-                basins[final_pos] = []
-            basins[final_pos].append(initial_pos)
-        
-        return basins
-    
-    def visualize_basins(self, basins):
-        """可视化吸引域"""
-        import matplotlib.pyplot as plt
-        
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(basins)))
-        
-        for (final_pos, initial_points), color in zip(basins.items(), colors):
-            initials = np.array(initial_points)
-            plt.scatter(initials[:, 0], initials[:, 1], 
-                       c=[color], alpha=0.5, s=10)
-            plt.scatter(final_pos[0], final_pos[1], c=[color], 
-                       marker='*', s=200, edgecolors='black')
-        
-        plt.xlabel('x1')
-        plt.ylabel('x2')
-        plt.title('Attraction Basins')
-        plt.show()
-```
-
-## 10.2 概率分析
-
-### 10.2.1 收敛概率分析
-
-```python
-class ConvergenceProbabilityAnalyzer:
-    """分析PSO的全局收敛概率"""
-    
-    def __init__(self, objective, dim, bounds, n_trials=100):
-        self.objective = objective
-        self.dim = dim
-        self.bounds = bounds
-        self.n_trials = n_trials
-    
-    def estimate_convergence_probability(self, tolerance=1e-6):
-        """估计找到全局最优的概率"""
-        successes = 0
-        
-        for _ in range(self.n_trials):
+        for _ in range(n_eval_per_config):
             pso = ParticleSwarmOptimizer(
-                self.objective, self.dim, self.bounds,
-                max_iter=500
+                objective, dim, bounds,
+                w=w, c1=c1, c2=c2, n_particles=30
             )
             _, fitness = pso.run()
-            
-            if fitness < tolerance:
-                successes += 1
-        
-        return successes / self.n_trials
-    
-    def confidence_interval(self, p, n, confidence=0.95):
-        """计算置信区间"""
-        from scipy import stats
-        
-        z = stats.norm.ppf((1 + confidence) / 2)
-        se = np.sqrt(p * (1 - p) / n)
-        
-        return (p - z * se, p + z * se)
-```
-
-### 10.2.2 期望收敛时间分析
-
-```python
-class ExpectedConvergenceTime:
-    """估计期望收敛时间"""
-    
-    def analyze_convergence_time(self, optimizer, true_optimum):
-        """分析收敛时间统计"""
-        convergence_times = []
-        
-        for _ in range(30):
-            optimizer.reset()
-            converged = False
-            
-            for t in range(optimizer.max_iter):
-                optimizer.step()
-                
-                distance = np.linalg.norm(
-                    optimizer.gbest_position - true_optimum
-                )
-                
-                if distance < 1e-4:
-                    convergence_times.append(t)
-                    converged = True
-                    break
-            
-            if not converged:
-                convergence_times.append(optimizer.max_iter)
-        
-        return {
-            'mean': np.mean(convergence_times),
-            'std': np.std(convergence_times),
-            'median': np.median(convergence_times),
-            'min': np.min(convergence_times),
-            'max': np.max(convergence_times),
-        }
-```
-
-## 10.3 邻域拓扑的数学分析
-
-### 10.3.1 拓扑结构与信息流动
-
-不同的拓扑结构决定了粒子间的信息流动模式：
-
-```python
-class TopologyAnalyzer:
-    """分析不同拓扑结构的影响"""
-    
-    TOPOLOGIES = {
-        'gbest': 'global_best',
-        'lbest_ring': 'local_best_ring',
-        'lbest_star': 'local_best_star',
-        'pyramid': 'pyramid',
-        'voronoi': 'voronoi',
-    }
-    
-    def analyze_information_flow(self, topology):
-        """分析拓扑中的信息流动"""
-        n_particles = 30
-        adjacency_matrix = self.build_adjacency(topology, n_particles)
-        
-        # 计算图的连通性
-        eigenvalues = np.linalg.eigvalsh(adjacency_matrix)
-        
-        # 代数连通性（第二小特征值）
-        algebraic_connectivity = sorted(eigenvalues)[1]
-        
-        # 直径
-        diameter = self.calculate_diameter(adjacency_matrix)
-        
-        # 平均路径长度
-        avg_path_length = self.calculate_avg_path(adjacency_matrix)
-        
-        return {
-            'algebraic_connectivity': algebraic_connectivity,
-            'diameter': diameter,
-            'avg_path_length': avg_path_length,
-        }
-    
-    def build_adjacency(self, topology, n):
-        """构建邻接矩阵"""
-        adj = np.zeros((n, n))
-        
-        if topology == 'lbest_ring':
-            for i in range(n):
-                adj[i, (i-1) % n] = 1
-                adj[i, (i+1) % n] = 1
-        elif topology == 'gbest':
-            adj[:] = 1  # 全连接
-        # ... 其他拓扑
-        
-        return adj
-```
-
-### 10.3.2 小世界拓扑
-
-```python
-class SmallWorldPSO(ParticleSwarmOptimizer):
-    """
-    小世界拓扑PSO
-    结合了局部搜索和全局搜索的优势
-    """
-    def __init__(self, *args, rewire_prob=0.1, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.rewire_prob = rewire_prob
-        self.build_ring_topology()
-    
-    def build_ring_topology(self):
-        """构建环形基础拓扑"""
-        self.neighbors = {}
-        for i in range(self.n_particles):
-            self.neighbors[i] = [(i-1) % self.n_particles,
-                                 (i+1) % self.n_particles]
-    
-    def rewire_edges(self):
-        """随机重连边"""
-        for i in range(self.n_particles):
-            for j_idx, j in enumerate(self.neighbors[i]):
-                if random.random() < self.rewire_prob:
-                    # 随机选择新邻居
-                    new_neighbor = random.choice([
-                        k for k in range(self.n_particles)
-                        if k != i and k not in self.neighbors[i]
-                    ])
-                    self.neighbors[i][j_idx] = new_neighbor
-    
-    def get_best_neighbor(self, i):
-        """获取邻居中最优的粒子"""
-        neighbor_indices = self.neighbors[i]
-        neighbor_fitness = self.pbest_fitness[neighbor_indices]
-        best_idx = np.argmin(neighbor_fitness)
-        return self.pbest_positions[neighbor_indices[best_idx]]
-```
-
----
-
-# 十一、高级变体与前沿研究
-
-## 11.1 耗散粒子群优化（DPSO）
-
-### 11.1.1 理论基础
-
-耗散PSO通过引入负熵流来抵抗早熟收敛：
-
-```python
-class DissipativePSO(ParticleSwarmOptimizer):
-    """
-    耗散粒子群优化
-    通过随机扰动引入熵
-    """
-    def __init__(self, *args, entropy_threshold=1e-6, 
-                 perturbation_strength=0.1, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.entropy_threshold = entropy_threshold
-        self.perturbation_strength = perturbation_strength
-    
-    def calculate_entropy(self):
-        """计算粒子群熵"""
-        # 使用速度分布的熵
-        velocities = self.velocities.flatten()
-        hist, _ = np.histogram(velocities, bins=50, density=True)
-        hist = hist[hist > 0]  # 去除零
-        return -np.sum(hist * np.log(hist + 1e-10))
-    
-    def inject_entropy(self):
-        """注入熵以跳出局部最优"""
-        entropy = self.calculate_entropy()
-        
-        if entropy < self.entropy_threshold:
-            # 随机选择粒子添加扰动
-            n_perturbed = max(1, self.n_particles // 10)
-            perturbed_indices = random.sample(
-                range(self.n_particles), n_perturbed
-            )
-            
-            for idx in perturbed_indices:
-                # 添加随机扰动
-                perturbation = np.random.uniform(
-                    -self.perturbation_strength,
-                    self.perturbation_strength,
-                    self.dim
-                )
-                self.positions[idx] += perturbation
-                
-                # 重新评估
-                self.fitness[idx] = self.objective(self.positions[idx])
-                
-                # 更新pbest
-                if self.fitness[idx] < self.pbest_fitness[idx]:
-                    self.pbest_positions[idx] = self.positions[idx].copy()
-                    self.pbest_fitness[idx] = self.fitness[idx]
-    
-    def step(self):
-        self.update_velocities()
-        self.update_positions()
-        self.evaluate()
-        self.inject_entropy()  # 关键差异
-```
-
-### 11.1.2 耗散机制的效果分析
-
-```python
-class EntropyAnalysis:
-    """分析熵注入的效果"""
-    
-    def compare_with_standard(self, objective, dim=10, n_runs=20):
-        """对比标准PSO和耗散PSO"""
-        standard_results = []
-        dissipative_results = []
-        
-        for _ in range(n_runs):
-            # 标准PSO
-            pso_std = ParticleSwarmOptimizer(
-                objective, dim, [(-10, 10)] * dim
-            )
-            _, fitness_std = pso_std.run()
-            standard_results.append(fitness_std)
-            
-            # 耗散PSO
-            pso_diss = DissipativePSO(
-                objective, dim, [(-10, 10)] * dim
-            )
-            _, fitness_diss = pso_diss.run()
-            dissipative_results.append(fitness_diss)
-        
-        return {
-            'standard': {
-                'mean': np.mean(standard_results),
-                'std': np.std(standard_results),
-            },
-            'dissipative': {
-                'mean': np.mean(dissipative_results),
-                'std': np.std(dissipative_results),
-            },
-            'improvement': np.mean(standard_results) - np.mean(dissipative_results)
-        }
-```
-
-## 11.2 协同进化PSO
-
-### 11.2.1 协同进化框架
-
-```python
-class CoevolutionPSO:
-    """
-    协同进化PSO
-    将复杂问题分解为多个子问题协同优化
-    """
-    def __init__(self, objective, dim, bounds, n_subpopulations=4):
-        self.objective = objective
-        self.dim = dim
-        self.bounds = bounds
-        self.n_subpopulations = n_subpopulations
-        
-        # 子种群规模
-        self.sub_dim = dim // n_subpopulations
-        self.n_particles_per_sub = 20
-        
-        # 创建子种群
-        self.sub_swarms = []
-        for i in range(n_subpopulations):
-            sub_bounds = bounds[i*self.sub_dim:(i+1)*self.sub_dim]
-            self.sub_swarms.append(
-                ParticleSwarmOptimizer(
-                    lambda x, si=i: self._evaluate_subsolution(x, si),
-                    self.sub_dim, sub_bounds,
-                    n_particles=self.n_particles_per_sub
-                )
-            )
-    
-    def _evaluate_subsolution(self, sub_pos, sub_idx):
-        """评估子解（需要组合其他子解）"""
-        # 从其他子种群获取当前最优
-        combined = np.zeros(self.dim)
-        
-        for i, swarm in enumerate(self.sub_swarms):
-            if i == sub_idx:
-                combined[sub_idx*self.sub_dim:(i+1)*self.sub_dim] = sub_pos
-            else:
-                combined[i*self.sub_dim:(i+1)*self.sub_dim] = \
-                    swarm.gbest_position
-        
-        return self.objective(combined)
-    
-    def run(self, max_iter=1000):
-        """协同进化主循环"""
-        for swarm in self.sub_swarms:
-            swarm.initialize()
-        
-        best_fitness = float('inf')
-        best_solution = None
-        
-        for iteration in range(max_iter):
-            for swarm in self.sub_swarms:
-                swarm.update_velocities()
-                swarm.update_positions()
-                swarm.evaluate()
-            
-            # 重组并评估全局适应度
-            global_best = self._reconstruct_solution()
-            fitness = self.objective(global_best)
-            
-            if fitness < best_fitness:
-                best_fitness = fitness
-                best_solution = global_best.copy()
-        
-        return best_solution, best_fitness
-    
-    def _reconstruct_solution(self):
-        """重组全局解"""
-        solution = np.zeros(self.dim)
-        for i, swarm in enumerate(self.sub_swarms):
-            solution[i*self.sub_dim:(i+1)*self.sub_dim] = \
-                swarm.gbest_position
-        return solution
-```
-
-## 11.3 稀疏PSO
-
-### 11.3.1 稀疏编码优化
-
-```python
-class SparsePSO:
-    """
-    稀疏PSO
-    专门用于稀疏优化问题
-    """
-    def __init__(self, objective, dim, sparsity_target=0.1):
-        self.objective = objective
-        self.dim = dim
-        self.sparsity_target = sparsity_target
-    
-    def sparse_fitness(self, x, alpha=0.01):
-        """
-        稀疏惩罚适应度
-        L1正则化
-        """
-        reconstruction_error = self.objective(x)
-        sparsity_penalty = alpha * np.sum(np.abs(x))
-        return reconstruction_error + sparsity_penalty
-    
-    def threshold_solution(self, x, threshold=1e-3):
-        """阈值化使解更稀疏"""
-        x_sparse = x.copy()
-        x_sparse[np.abs(x_sparse) < threshold] = 0
-        return x_sparse
-    
-    def optimize(self, n_particles=30, max_iter=500):
-        """运行稀疏PSO"""
-        bounds = [(-10, 10)] * self.dim
-        
-        optimizer = ParticleSwarmOptimizer(
-            lambda x: self.sparse_fitness(x),
-            self.dim, bounds, n_particles=n_particles
-        )
-        
-        best_pos, _ = optimizer.run()
-        best_sparse = self.threshold_solution(best_pos)
-        
-        # 评估原始目标函数
-        original_fitness = self.objective(best_sparse)
-        actual_sparsity = 1 - np.count_nonzero(best_sparse) / self.dim
-        
-        return {
-            'solution': best_sparse,
-            'sparsity': actual_sparsity,
-            'fitness': original_fitness
-        }
-```
-
-## 11.4 批量适应度PSO
-
-### 11.4.1 批量评估策略
-
-```python
-class BatchFitnessPSO(ParticleSwarmOptimizer):
-    """
-    批量适应度评估PSO
-    利用向量化加速适应度计算
-    """
-    def __init__(self, objective_vectorized, *args, **kwargs):
-        super().__init__(lambda x: objective_vectorized(x[None, :])[0], 
-                        *args, **kwargs)
-        self.objective_vectorized = objective_vectorized
-    
-    def evaluate_batch(self):
-        """批量评估所有粒子"""
-        # 向量化评估
-        fitness_values = self.objective_vectorized(self.positions)
-        self.fitness = fitness_values
-        
-        # 更新pbest
-        improved = self.fitness < self.pbest_fitness
-        self.pbest_positions[improved] = self.positions[improved]
-        self.pbest_fitness[improved] = self.fitness[improved]
-        
-        # 更新gbest
-        gbest_idx = np.argmin(self.fitness)
-        if self.fitness[gbest_idx] < self.gbest_fitness:
-            self.gbest_position = self.positions[gbest_idx].copy()
-            self.gbest_fitness = self.fitness[gbest_idx]
-
-
-class VectorizedFitnessExample:
-    """向量化的适应度函数示例"""
-    
-    @staticmethod
-    def rastrigin_batch(X):
-        """
-        批量Rastrigin函数
-        X shape: (n_particles, dim)
-        """
-        A = 10
-        n = X.shape[1]
-        return A * n + np.sum(X**2 - A * np.cos(2 * np.pi * X), axis=1)
-    
-    @staticmethod
-    def rosenbrock_batch(X):
-        """
-        批量Rosenbrock函数
-        """
-        x = X[:, :-1]
-        y = X[:, 1:]
-        return np.sum(100 * (y - x**2)**2 + (1 - x)**2, axis=1)
-```
-
----
-
-# 十二、性能基准与测试套件
-
-## 12.1 标准测试函数集
-
-### 12.1.1 单峰函数
-
-```python
-class BenchmarkFunctions:
-    """标准基准测试函数"""
-    
-    @staticmethod
-    def sphere(x):
-        """Sphere函数 - 最简单的单峰函数"""
-        return np.sum(x**2)
-    
-    @staticmethod
-    def rosenbrock(x):
-        """Rosenbrock函数 - 经典优化问题"""
-        return sum(100*(x[i+1] - x[i]**2)**2 + (1-x[i])**2 
-                   for i in range(len(x)-1))
-    
-    @staticmethod
-    def schwefel(x):
-        """Schwefel函数"""
-        n = len(x)
-        return 418.9829 * n - np.sum(x * np.sin(np.sqrt(np.abs(x))))
-    
-    @staticmethod
-    def step(x):
-        """Step函数"""
-        return np.sum(np.floor(x + 0.5)**2)
-    
-    @staticmethod
-    def quartic(x):
-        """四次函数（含噪声）"""
-        n = len(x)
-        return np.sum((n - i) * x[i]**4 for i in range(n)) + random.random()
-```
-
-### 12.1.2 多峰函数
-
-```python
-    @staticmethod
-    def rastrigin(x):
-        """Rastrigin函数 - 多峰，有大量局部最优"""
-        A = 10
-        n = len(x)
-        return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
-    
-    @staticmethod
-    def griewank(x):
-        """Griewank函数"""
-        part1 = np.sum(x**2) / 4000
-        part2 = np.prod(np.cos(x / np.sqrt(np.arange(1, len(x)+1))))
-        return part1 - part2 + 1
-    
-    @staticmethod
-    def ackley(x):
-        """Ackley函数"""
-        a = 20
-        b = 0.2
-        c = 2 * np.pi
-        
-        sum1 = np.sum(x**2)
-        sum2 = np.sum(np.cos(c * x))
-        
-        term1 = -a * np.exp(-b * np.sqrt(sum1 / len(x)))
-        term2 = -np.exp(sum2 / len(x))
-        
-        return term1 + term2 + a + np.e
-    
-    @staticmethod
-    def perm(x, beta=0.5):
-        """Perm函数"""
-        n = len(x)
-        result = 0
-        for k in range(1, n + 1):
-            temp = 0
-            for j in range(1, n + 1):
-                temp += (j + beta) * (x[j-1]**k - 1/j**k)
-            result += temp**2
-        return result
-```
-
-### 12.1.3 组合函数
-
-```python
-    @staticmethod
-    def zakharov(x):
-        """Zakharov函数"""
-        sum1 = np.sum(x**2)
-        sum2 = np.sum(0.5 * (i+1) * x[i] for i in range(len(x)))
-        return sum1 + sum2**2 + sum2**4
-    
-    @staticmethod
-    def dixon_price(x):
-        """Dixon-Price函数"""
-        n = len(x)
-        term1 = (x[0] - 1)**2
-        term2 = sum((i+2) * (2*x[i]**2 - x[i-1])**2 for i in range(1, n))
-        return term1 + term2
-```
-
-## 12.2 基准测试框架
-
-```python
-class BenchmarkSuite:
-    """PSO基准测试套件"""
-    
-    FUNCTIONS = {
-        'sphere': BenchmarkFunctions.sphere,
-        'rosenbrock': BenchmarkFunctions.rosenbrock,
-        'rastrigin': BenchmarkFunctions.rastrigin,
-        'griewank': BenchmarkFunctions.griewank,
-        'ackley': BenchmarkFunctions.ackley,
-        'schwefel': BenchmarkFunctions.schwefel,
-    }
-    
-    def __init__(self, dimensions=[10, 30, 50]):
-        self.dimensions = dimensions
-    
-    def run_benchmark(self, optimizer_class, n_runs=30):
-        """运行完整基准测试"""
-        results = {}
-        
-        for func_name, func in self.FUNCTIONS.items():
-            results[func_name] = {}
-            
-            for dim in self.dimensions:
-                runs = []
-                
-                for _ in range(n_runs):
-                    optimizer = optimizer_class(
-                        func, dim, [(-100, 100)] * dim,
-                        max_iter=1000
-                    )
-                    _, fitness = optimizer.run()
-                    runs.append(fitness)
-                
-                results[func_name][dim] = {
-                    'mean': np.mean(runs),
-                    'std': np.std(runs),
-                    'min': np.min(runs),
-                    'max': np.max(runs),
-                    'median': np.median(runs),
-                }
-        
-        return results
-    
-    def generate_report(self, results, output_path='benchmark_report.md'):
-        """生成基准测试报告"""
-        report = "# PSO Benchmark Report\n\n"
-        
-        for func_name in self.FUNCTIONS:
-            report += f"## {func_name}\n\n"
-            report += "| Dim | Mean | Std | Min | Max |\n"
-            report += "|-----|------|-----|-----|-----|\n"
-            
-            for dim, stats in results[func_name].items():
-                report += f"| {dim} | {stats['mean']:.6e} | "
-                report += f"{stats['std']:.6e} | {stats['min']:.6e} | "
-                report += f"{stats['max']:.6e} |\n"
-            
-            report += "\n"
-        
-        with open(output_path, 'w') as f:
-            f.write(report)
-        
-        return report
-```
-
-## 12.3 统计分析工具
-
-```python
-class StatisticalAnalysis:
-    """统计显著性分析"""
-    
-    @staticmethod
-    def wilcoxon_signed_rank_test(algorithm1_results, algorithm2_results):
-        """
-        Wilcoxon符号秩检验
-        配对样本非参数检验
-        """
-        from scipy import stats
-        
-        # 差值
-        d = np.array(algorithm1_results) - np.array(algorithm2_results)
-        
-        # 排除零差
-        d_nonzero = d[d != 0]
-        
-        if len(d_nonzero) == 0:
-            return {'p_value': 1.0, 'significant': False}
-        
-        # 计算统计量
-        stat, p_value = stats.wilcoxon(algorithm1_results, algorithm2_results)
-        
-        return {
-            'statistic': stat,
-            'p_value': p_value,
-            'significant': p_value < 0.05,
-            'effect_size': np.mean(d) / np.std(d),
-        }
-    
-    @staticmethod
-    def friedman_test(all_algorithms_results):
-        """
-        Friedman检验
-        多算法比较
-        """
-        from scipy import stats
-        
-        n_problems = len(all_algorithms_results[0])
-        k_algorithms = len(all_algorithms_results)
-        
-        # 计算每个问题的排名
-        rankings = []
-        for problem_idx in range(n_problems):
-            fitnesses = [results[problem_idx] for results in all_algorithms_results]
-            ranks = stats.rankdata(fitnesses)
-            rankings.append(ranks)
-        
-        rankings = np.array(rankings)
-        
-        # Friedman统计量
-        mean_ranks = np.mean(rankings, axis=0)
-        
-        chi2 = (12 * n_problems / (k_algorithms * (k_algorithms + 1))) * \
-               np.sum(mean_ranks**2) - 3 * n_problems * (k_algorithms + 1)
-        
-        # 自由度为k-1
-        p_value = 1 - stats.chi2.cdf(chi2, k_algorithms - 1)
-        
-        return {
-            'chi2': chi2,
-            'p_value': p_value,
-            'mean_ranks': mean_ranks,
-        }
-```
-
----
-
-# 十三、工程实践指南
-
-## 13.1 参数调优策略
-
-### 13.1.1 网格搜索
-
-```python
-class ParameterGridSearch:
-    """PSO参数网格搜索"""
-    
-    PARAM_GRID = {
-        'w': [0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-        'c1': [1.0, 1.5, 2.0, 2.5],
-        'c2': [1.0, 1.5, 2.0, 2.5],
-        'n_particles': [20, 30, 50, 100],
-    }
-    
-    def __init__(self, objective, dim, bounds):
-        self.objective = objective
-        self.dim = dim
-        self.bounds = bounds
-    
-    def grid_search(self, n_eval_per_config=10):
-        """网格搜索最优参数"""
-        from itertools import product
-        
-        best_fitness = float('inf')
-        best_params = None
-        all_results = []
-        
-        param_combinations = product(
-            self.PARAM_GRID['w'],
-            self.PARAM_GRID['c1'],
-            self.PARAM_GRID['c2'],
-            self.PARAM_GRID['n_particles']
-        )
-        
-        for w, c1, c2, n_particles in param_combinations:
-            fitnesses = []
-            
-            for _ in range(n_eval_per_config):
-                pso = ParticleSwarmOptimizer(
-                    self.objective, self.dim, self.bounds,
-                    w=w, c1=c1, c2=c2,
-                    n_particles=n_particles
-                )
-                _, fitness = pso.run()
-                fitnesses.append(fitness)
-            
-            mean_fitness = np.mean(fitnesses)
-            all_results.append({
-                'w': w, 'c1': c1, 'c2': c2, 
-                'n_particles': n_particles,
-                'mean_fitness': mean_fitness
-            })
-            
-            if mean_fitness < best_fitness:
-                best_fitness = mean_fitness
-                best_params = {'w': w, 'c1': c1, 'c2': c2, 
-                              'n_particles': n_particles}
-        
-        return best_params, all_results
-```
-
-### 13.1.2 自适应参数调整框架
-
-```python
-class AdaptiveParameterController:
-    """
-    自适应参数控制器
-    根据搜索进度动态调整参数
-    """
-    
-    def __init__(self, initial_params):
-        self.params = initial_params.copy()
-        self.history = {
-            'fitness': [],
-            'diversity': [],
-            'params': []
-        }
-    
-    def calculate_diversity(self, positions):
-        """计算种群多样性"""
-        centroid = np.mean(positions, axis=0)
-        distances = np.linalg.norm(positions - centroid, axis=1)
-        return np.mean(distances)
-    
-    def adjust_parameters(self, generation, fitness, positions):
-        """根据当前状态调整参数"""
-        # 记录历史
-        self.history['fitness'].append(fitness)
-        self.history['diversity'].append(
-            self.calculate_diversity(positions)
-        )
-        
-        # 计算进度
-        progress = generation / self.max_iter
-        
-        # 基于多样性的调整
-        current_diversity = self.history['diversity'][-1]
-        initial_diversity = self.history['diversity'][0]
-        diversity_ratio = current_diversity / (initial_diversity + 1e-10)
-        
-        # 基于收敛的调整
-        if len(self.history['fitness']) > 10:
-            recent_improvement = self.history['fitness'][-10] - \
-                               self.history['fitness'][-1]
-        else:
-            recent_improvement = 0
-        
-        # 自适应规则
-        if diversity_ratio < 0.1:
-            # 多样性过低，增加探索
-            self.params['w'] = min(0.95, self.params['w'] * 1.1)
-            self.params['c1'] = min(2.5, self.params['c1'] * 1.05)
-            self.params['c2'] = max(0.5, self.params['c2'] * 0.95)
-        elif recent_improvement < 1e-8:
-            # 停滞，增加扰动
-            self.params['w'] = min(0.9, self.params['w'] + 0.05)
-        else:
-            # 正常搜索
-            self.params['w'] *= 0.999
-        
-        # 限制范围
-        self.params['w'] = np.clip(self.params['w'], 0.1, 0.95)
-        self.params['c1'] = np.clip(self.params['c1'], 0.5, 2.5)
-        self.params['c2'] = np.clip(self.params['c2'], 0.5, 2.5)
-        
-        self.history['params'].append(self.params.copy())
-        
-        return self.params
-```
-
-## 13.2 早熟收敛检测
-
-### 13.2.1 多样性度量
-
-```python
-class PrematureConvergenceDetector:
-    """早熟收敛检测器"""
-    
-    def __init__(self, threshold=1e-6, window_size=20):
-        self.threshold = threshold
-        self.window_size = window_size
-        self.fitness_history = []
-    
-    def check_diversity(self, positions):
-        """检查种群多样性"""
-        # 方法1：位置标准差
-        position_std = np.std(positions, axis=0)
-        mean_std = np.mean(position_std)
-        
-        # 方法2：到质心的平均距离
-        centroid = np.mean(positions, axis=0)
-        distances = np.linalg.norm(positions - centroid, axis=1)
-        mean_distance = np.mean(distances)
-        
-        # 方法3：唯一位置比例
-        unique_ratio = len(np.unique(positions.round(4), axis=0)) / len(positions)
-        
-        return {
-            'position_std': mean_std,
-            'mean_distance': mean_distance,
-            'unique_ratio': unique_ratio,
-            'is_converged': mean_std < self.threshold
-        }
-    
-    def check_stagnation(self, current_fitness):
-        """检查适应度停滞"""
-        self.fitness_history.append(current_fitness)
-        
-        if len(self.fitness_history) < self.window_size:
-            return {'stagnant': False}
-        
-        recent = self.fitness_history[-self.window_size:]
-        
-        # 检查是否所有值都相同
-        if len(set(recent)) == 1:
-            return {'stagnant': True, 'reason': 'identical_values'}
-        
-        # 检查变化是否足够小
-        max_change = max(recent) - min(recent)
-        if max_change < self.threshold:
-            return {'stagnant': True, 'reason': 'minimal_change'}
-        
-        return {'stagnant': False}
-    
-    def detect_and_respond(self, positions, fitness):
-        """检测并响应早熟"""
-        diversity_info = self.check_diversity(positions)
-        stagnation_info = self.check_stagnation(fitness)
-        
-        if diversity_info['is_converged'] or stagnation_info['stagnant']:
-            return {
-                'premature': True,
-                'diversity': diversity_info,
-                'stagnation': stagnation_info,
-                'action': self.suggest_action()
-            }
-        
-        return {'premature': False}
-    
-    def suggest_action(self):
-        """建议的应对动作"""
-        actions = []
-        
-        # 增加随机扰动
-        actions.append('inject_random_particles')
-        
-        # 重新初始化部分粒子
-        actions.append('reinitialize_subpopulation')
-        
-        # 增大惯性权重
-        actions.append('increase_inertia')
-        
-        # 切换拓扑结构
-        actions.append('change_topology')
-        
-        return actions
-```
-
-## 13.3 混合优化策略
-
-### 13.3.1 PSO + 局部搜索
-
-```python
-class HybridPSOLocalSearch(ParticleSwarmOptimizer):
-    """
-    PSO与局部搜索混合
-    PSO负责全局探索，局部搜索负责精细调优
-    """
-    def __init__(self, *args, local_search_freq=50,
-                 local_search_iters=20, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.local_search_freq = local_search_freq
-        self.local_search_iters = local_search_iters
-    
-    def local_search(self, position):
-        """使用L-BFGS-B进行局部搜索"""
-        from scipy.optimize import minimize
-        
-        result = minimize(
-            self.objective,
-            position,
-            method='L-BFGS-B',
-            options={'maxiter': self.local_search_iters}
-        )
-        
-        return result.x, result.fun
-    
-    def step(self, iteration):
-        # 标准的PSO更新
-        self.update_velocities()
-        self.update_positions()
-        self.evaluate()
-        
-        # 周期性局部搜索
-        if iteration % self.local_search_freq == 0:
-            self.apply_local_search()
-    
-    def apply_local_search(self):
-        """对全局最优应用局部搜索"""
-        new_pos, new_fitness = self.local_search(self.gbest_position)
-        
-        if new_fitness < self.gbest_fitness:
-            self.gbest_position = new_pos
-            self.gbest_fitness = new_fitness
-            
-            # 更新一个粒子的位置
-            worst_idx = np.argmax(self.fitness)
-            self.positions[worst_idx] = new_pos
-            self.fitness[worst_idx] = new_fitness
-            self.pbest_positions[worst_idx] = new_pos
-            self.pbest_fitness[worst_idx] = new_fitness
-```
-
-### 13.3.2 PSO + 差分进化
-
-```python
-class HybridPSODE(ParticleSwarmOptimizer):
-    """
-    PSO与差分进化混合
-    利用DE的变异策略增强PSO的探索能力
-    """
-    def __init__(self, *args, de_probability=0.3, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.de_probability = de_probability
-    
-    def de_mutation(self, i):
-        """差分进化变异"""
-        NP = self.n_particles
-        
-        # 选择三个不同于i的个体
-        candidates = [j for j in range(NP) if j != i]
-        r1, r2, r3 = random.sample(candidates, 3)
-        
-        F = 0.5  # 缩放因子
-        mutant = self.positions[r1] + F * (
-            self.positions[r2] - self.positions[r3]
-        )
-        
-        # 边界处理
-        mutant = np.clip(mutant,
-                        [b[0] for b in self.bounds],
-                        [b[1] for b in self.bounds])
-        
-        return mutant
-    
-    def hybrid_step(self):
-        """混合更新策略"""
-        for i in range(self.n_particles):
-            if random.random() < self.de_probability:
-                # 使用DE变异
-                mutant = self.de_mutation(i)
-                
-                # 评估
-                fitness_mutant = self.objective(mutant)
-                
-                if fitness_mutant < self.fitness[i]:
-                    self.positions[i] = mutant
-                    self.fitness[i] = fitness_mutant
-                    
-                    if fitness_mutant < self.pbest_fitness[i]:
-                        self.pbest_positions[i] = mutant
-                        self.pbest_fitness[i] = fitness_mutant
-                        
-                        if fitness_mutant < self.gbest_fitness:
-                            self.gbest_position = mutant
-                            self.gbest_fitness = fitness_mutant
-            else:
-                # 使用标准PSO更新
-                self.update_velocities()
-                self.update_positions()
-        
-        self.evaluate()
-```
-
----
-
-# 十四、深度学习中的应用
-
-## 14.1 超参数优化
-
-```python
-class PSOHyperparameterOptimizer:
-    """
-    使用PSO优化神经网络超参数
-    """
-    
-    def __init__(self, train_data, val_data, search_space):
-        self.train_data = train_data
-        self.val_data = val_data
-        self.search_space = search_space
-    
-    def decode_particle(self, particle):
-        """将粒子编码转换为超参数"""
-        params = {}
-        
-        idx = 0
-        for param_name, (low, high) in self.search_space.items():
-            params[param_name] = low + particle[idx] * (high - low)
-            idx += 1
-        
-        return params
-    
-    def evaluate_config(self, params):
-        """评估超参数配置"""
-        # 构建模型
-        model = self.build_model(params)
-        
-        # 训练
-        history = model.fit(
-            self.train_data[0], self.train_data[1],
-            validation_data=self.val_data,
-            epochs=int(params.get('epochs', 10)),
-            verbose=0
-        )
-        
-        # 返回验证集损失
-        return min(history.history['val_loss'])
-    
-    def build_model(self, params):
-        """根据参数构建模型"""
-        import tensorflow as tf
-        from tensorflow import keras
-        from tensorflow.keras import layers
-        
-        model = keras.Sequential([
-            layers.Dense(int(params['hidden_units']),
-                        activation=params.get('activation', 'relu'),
-                        input_shape=self.train_data[0].shape[1:]),
-            layers.Dropout(params.get('dropout', 0.5)),
-            layers.Dense(int(params['hidden_units2']),
-                        activation=params.get('activation', 'relu')),
-            layers.Dropout(params.get('dropout', 0.5)),
-            layers.Dense(10, activation='softmax')
-        ])
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(
-                learning_rate=params.get('lr', 0.001)
-            ),
-            loss='sparse_categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        
-        return model
-    
-    def optimize(self, n_particles=30, max_iter=50):
-        """运行超参数优化"""
-        dim = len(self.search_space)
-        bounds = [(0, 1)] * dim
-        
-        optimizer = ParticleSwarmOptimizer(
-            objective=lambda x: self.evaluate_config(
-                self.decode_particle(x)
-            ),
-            dim=dim,
-            bounds=bounds,
-            n_particles=n_particles
-        )
-        
-        best_pos, best_fitness = optimizer.run()
-        
-        return {
-            'best_params': self.decode_particle(best_pos),
-            'best_val_loss': best_fitness
-        }
-```
-
-## 14.2 神经网络结构搜索
-
-```python
-class PSONeuralArchitectureSearch:
-    """
-    基于PSO的神经网络架构搜索
-    """
-    
-    def __init__(self, input_dim, output_dim):
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-    
-    def encode_architecture(self, particle):
-        """编码粒子为网络架构"""
-        n_layers = int(3 + particle[0] * 3)  # 3-6层
-        architecture = []
-        
-        idx = 1
-        for _ in range(n_layers):
-            units = int(32 + particle[idx] * 256)
-            activation = ['relu', 'tanh', 'sigmoid'][int(particle[idx+1] * 3)]
-            use_bn = particle[idx+2] > 0.5
-            use_dropout = particle[idx+3] > 0.5
-            dropout_rate = particle[idx+4]
-            
-            layer_config = {
-                'units': units,
-                'activation': activation,
-                'batch_norm': use_bn,
-                'dropout': use_dropout,
-                'dropout_rate': dropout_rate
-            }
-            architecture.append(layer_config)
-            idx += 5
-        
-        return architecture
-    
-    def build_network(self, architecture):
-        """根据架构构建网络"""
-        import tensorflow as tf
-        from tensorflow.keras import layers, Model
-        
-        inputs = tf.keras.Input(shape=(self.input_dim,))
-        x = inputs
-        
-        for layer_config in architecture:
-            x = layers.Dense(
-                layer_config['units'],
-                activation=layer_config['activation']
-            )(x)
-            
-            if layer_config['batch_norm']:
-                x = layers.BatchNormalization()(x)
-            
-            if layer_config['dropout']:
-                x = layers.Dropout(layer_config['dropout_rate'])(x)
-        
-        outputs = layers.Dense(self.output_dim, activation='softmax')(x)
-        
-        return Model(inputs=inputs, outputs=outputs)
-    
-    def fitness_function(self, particle):
-        """评估架构的适应度"""
-        architecture = self.encode_architecture(particle)
-        model = self.build_network(architecture)
-        
-        # 简化的评估（实际应用中需要完整的训练和验证）
-        model.compile(
-            optimizer='adam',
-            loss='categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        
-        # 训练少量epoch
-        # 这里使用随机数据作为示例
-        x_train = np.random.randn(1000, self.input_dim)
-        y_train = np.random.randint(0, self.output_dim, 1000)
-        
-        model.fit(x_train, y_train, epochs=3, verbose=0)
-        
-        # 返回负的准确率（因为我们最小化）
-        _, accuracy = model.evaluate(x_train, y_train, verbose=0)
-        
-        return -accuracy  # 最小化问题
-```
-
----
-
-# 十五、约束优化问题
-
-## 15.1 约束处理技术
-
-### 15.1.1 罚函数法
-
-```python
-class ConstrainedPSO(ParticleSwarmOptimizer):
-    """
-    带约束的PSO
-    使用罚函数法处理约束
-    """
-    
-    def __init__(self, objective, constraints, *args,
-                 penalty_coef=1000, **kwargs):
-        super().__init__(objective, *args, **kwargs)
-        self.constraints = constraints
-        self.penalty_coef = penalty_coef
-    
-    def evaluate_constraints(self, x):
-        """评估约束违反程度"""
-        violations = {
-            'inequality': [],
-            'equality': []
-        }
-        
-        for constraint in self.constraints.get('ineq', []):
-            value = constraint(x)
-            violations['inequality'].append(max(0, value))
-        
-        for constraint in self.constraints.get('eq', []):
-            value = abs(constraint(x))
-            violations['equality'].append(value)
-        
-        return violations
-    
-    def constrained_objective(self, x):
-        """带惩罚的目标函数"""
-        obj = self.objective(x)
-        violations = self.evaluate_constraints(x)
-        
-        penalty = self.penalty_coef * (
-            sum(violations['inequality']) +
-            sum(violations['equality'])
-        )
-        
-        return obj + penalty
-    
-    def is_feasible(self, x):
-        """检查解是否可行"""
-        violations = self.evaluate_constraints(x)
-        total_violation = (
-            sum(violations['inequality']) +
-            sum(violations['equality'])
-        )
-        return total_violation < 1e-6
-```
-
-### 15.1.2 可行性规则
-
-```python
-class FeasibilityRulePSO(ParticleSwarmOptimizer):
-    """
-    使用可行性规则处理约束
-    优先选择可行解
-    """
-    
-    def __init__(self, objective, constraints, *args, **kwargs):
-        super().__init__(objective, *args, **kwargs)
-        self.constraints = constraints
-    
-    def dominates(self, x1, x2):
-        """判断x1是否支配x2（约束优化版）"""
-        v1 = self.constraint_violation(x1)
-        v2 = self.constraint_violation(x2)
-        f1 = self.objective(x1)
-        f2 = self.objective(x2)
-        
-        # x1可行且x2不可行
-        if v1 == 0 and v2 > 0:
-            return True
-        
-        # 都不可行，违反度小的支配违反度大的
-        if v1 > 0 and v2 > 0:
-            return v1 < v2
-        
-        # 都可行，目标值小的支配目标值大的
-        if v1 == 0 and v2 == 0:
-            return f1 < f2
-        
-        return False
-    
-    def constraint_violation(self, x):
-        """计算总约束违反度"""
-        violations = []
-        
-        for constraint in self.constraints.get('ineq', []):
-            violations.append(max(0, constraint(x)))
-        
-        for constraint in self.constraints.get('eq', []):
-            violations.append(abs(constraint(x)))
-        
-        return sum(violations)
-    
-    def selection_with_constraints(self):
-        """基于可行性规则的选择"""
-        # 更新pbest
-        for i in range(self.n_particles):
-            if self.dominates(self.positions[i], self.pbest_positions[i]):
-                self.pbest_positions[i] = self.positions[i].copy()
-                self.pbest_fitness[i] = self.fitness[i]
-        
-        # 更新gbest
-        feasible_indices = [
-            i for i in range(self.n_particles)
-            if self.constraint_violation(self.positions[i]) == 0
-        ]
-        
-        if feasible_indices:
-            # 选择最优的可行解
-            feasible_fitness = self.pbest_fitness[feasible_indices]
-            best_idx = feasible_indices[np.argmin(feasible_fitness)]
-            self.gbest_position = self.pbest_positions[best_idx].copy()
-            self.gbest_fitness = self.pbest_fitness[best_idx]
-        else:
-            # 没有可行解，选择违反度最小的
-            violations = [self.constraint_violation(self.pbest_positions[i])
-                         for i in range(self.n_particles)]
-            best_idx = np.argmin(violations)
-            self.gbest_position = self.pbest_positions[best_idx].copy()
-            self.gbest_fitness = violations[best_idx]
-```
-
-## 15.2 约束优化示例
-
-```python
-class EngineeringConstraintExample:
-    """工程约束优化示例"""
-    
-    @staticmethod
-    def pressure_vessel_design(x):
-        """
-        压力容器设计问题
-        最小化材料成本
-        约束：壁厚、容量等
-        """
-        # 解编码：[Ts, Th, R, L]
-        Ts, Th, R, L = x
-        
-        # 目标：成本最小化
-        cost = 0.6224*Ts*R*L + 1.7781*Th*R**2 + 3.1661*Ts**2*L + 19.84*Ts**2*R
-        
-        # 约束
-        g1 = -Ts + 0.0193*R  # 壁厚约束
-        g2 = -Th + 0.00954*R
-        g3 = -np.pi*R**2*L - (4/3)*np.pi*R**3 + 1296000  # 体积约束
-        g4 = L + 2*R - 240  # 长度约束
-        
-        # 罚函数
-        penalty = 0
-        for g in [g1, g2, g3, g4]:
-            if g < 0:
-                penalty += -g * 1000
-        
-        return cost + penalty
-    
-    @staticmethod
-    def spring_design(x):
-        """
-        弹簧设计问题
-        最小化重量
-        """
-        # 解编码：[d, D, N]
-        d, D, N = x
-        
-        # 目标
-        weight = (N + 2) * D * d**2
-        
-        # 约束
-        C = D / d  # 弹簧指数
-        
-        g1 = 1 - C**3 * N / 7178  # 剪切应力
-        g2 = C - (140 + 0.1) / (120 + 0.3)  # 弹簧指数
-        g3 = (4*C - C**2) / (4*C - 3*C**2 + C**3 - 0.00185) - 1/750  # 偏转
-        g4 = d - 0.2  # 直径下限
-        
-        penalty = 0
-        for g in [g1, g2, g3, g4]:
-            if g < 0:
-                penalty += -g * 1000
-        
-        return weight + penalty
-```
-
----
-
-# 十六、代码模板与最佳实践
-
-## 16.1 通用PSO模板
-
-```python
-"""
-PSO通用优化模板
-开箱即用，适用于大多数连续优化问题
-"""
-
-import numpy as np
-import random
-from typing import Callable, List, Tuple, Optional
-from dataclasses import dataclass
-
-
-@dataclass
-class PSOConfig:
-    """PSO配置参数"""
-    n_particles: int = 30
-    max_iter: int = 1000
-    w: float = 0.729
-    c1: float = 1.49445
-    c2: float = 1.49445
-    v_max_ratio: float = 0.2
-    tol: float = 1e-8
-    early_stop_patience: int = 50
-
-
-class GenericPSO:
-    """通用PSO优化器"""
-    
-    def __init__(self, objective: Callable,
-                 bounds: List[Tuple[float, float]],
-                 config: Optional[PSOConfig] = None):
-        self.objective = objective
-        self.bounds = bounds
-        self.config = config or PSOConfig()
-        
-        self.dim = len(bounds)
-        self._setup()
-    
-    def _setup(self):
-        """初始化"""
-        bounds_array = np.array(self.bounds)
-        self.low_bounds = bounds_array[:, 0]
-        self.high_bounds = bounds_array[:, 1]
-        
-        self.v_max = (self.high_bounds - self.low_bounds) * \
-                     self.config.v_max_ratio
-        
-        # 初始化粒子
-        self.positions = np.random.uniform(
-            self.low_bounds, self.high_bounds,
-            (self.config.n_particles, self.dim)
-        )
-        
-        self.velocities = np.random.uniform(
-            -self.v_max, self.v_max,
-            (self.config.n_particles, self.dim)
-        )
-        
-        self.fitness = np.array([
-            self.objective(pos) for pos in self.positions
-        ])
-        
-        self.pbest = self.positions.copy()
-        self.pbest_fit = self.fitness.copy()
-        
-        best_idx = np.argmin(self.fitness)
-        self.gbest = self.positions[best_idx].copy()
-        self.gbest_fit = self.fitness[best_idx]
-        
-        self.history = [self.gbest_fit]
-        self.no_improvement_count = 0
-    
-    def step(self):
-        """执行一步迭代"""
-        r1 = np.random.random((self.config.n_particles, self.dim))
-        r2 = np.random.random((self.config.n_particles, self.dim))
-        
-        # 更新速度
-        cognitive = self.config.c1 * r1 * (self.pbest - self.positions)
-        social = self.config.c2 * r2 * (self.gbest - self.positions)
-        
-        self.velocities = self.config.w * self.velocities + cognitive + social
-        
-        # 限制速度
-        self.velocities = np.clip(self.velocities, -self.v_max, self.v_max)
-        
-        # 更新位置
-        self.positions += self.velocities
-        self.positions = np.clip(self.positions, self.low_bounds, self.high_bounds)
-        
-        # 评估
-        self.fitness = np.array([self.objective(pos) for pos in self.positions])
-        
-        # 更新pbest
-        improved = self.fitness < self.pbest_fit
-        self.pbest[improved] = self.positions[improved]
-        self.pbest_fit[improved] = self.fitness[improved]
-        
-        # 更新gbest
-        if self.fitness.min() < self.gbest_fit:
-            self.gbest_fit = self.fitness.min()
-            self.gbest = self.positions[np.argmin(self.fitness)].copy()
-            self.no_improvement_count = 0
-        else:
-            self.no_improvement_count += 1
-        
-        self.history.append(self.gbest_fit)
-    
-    def run(self) -> Tuple[np.ndarray, float]:
-        """运行优化"""
-        for _ in range(self.config.max_iter):
-            self.step()
-            
-            if self.gbest_fit < self.config.tol:
-                break
-            
-            if self.no_improvement_count > self.config.early_stop_patience:
-                break
-        
-        return self.gbest.copy(), self.gbest_fit
-
+            fitnesses.append(fitness)
+        
+        mean_fitness = np.mean(fitnesses)
+        results.append({
+            'w': w, 'c1': c1, 'c2': c2,
+            'mean_fitness': mean_fitness,
+            'std_fitness': np.std(fitnesses)
+        })
+        
+        if mean_fitness < best_fitness:
+            best_fitness = mean_fitness
+            best_params = {'w': w, 'c1': c1, 'c2': c2}
+    
+    return best_params, results
 
 # 使用示例
-if __name__ == "__main__":
-    # 定义优化问题
-    def sphere(x):
-        return np.sum(x**2)
-    
-    # 设置边界
-    bounds = [(-10, 10)] * 10
-    
-    # 创建优化器
-    pso = GenericPSO(sphere, bounds)
-    
-    # 运行优化
-    best_pos, best_fitness = pso.run()
-    
-    print(f"Best position: {best_pos}")
-    print(f"Best fitness: {best_fitness}")
+best_params, all_results = grid_search_pso(
+    objective=sphere,
+    dim=10,
+    bounds=[(-10, 10)] * 10,
+    n_eval_per_config=5
+)
+print(f"最优参数: {best_params}")
 ```
 
-## 16.2 面向对象PSO框架
+网格搜索计算量大（参数组合指数增长），但对于小规模参数空间很有效。
+
+## 自适应参数调整
+
+更高级的做法是让PSO自己学会调参：
 
 ```python
-"""
-面向对象的PSO框架
-支持扩展和定制
-"""
+class AdaptivePSO(ParticleSwarmOptimizer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.w = 0.9  # 初始高探索
+        self.fitness_history = []
+        self.diversity_history = []
+    
+    def calculate_diversity(self):
+        """计算种群多样性"""
+        centroid = np.mean(self.positions, axis=0)
+        distances = np.linalg.norm(self.positions - centroid, axis=1)
+        return np.mean(distances)
+    
+    def adjust_parameters(self, iteration):
+        """根据当前状态自适应调整参数"""
+        # 记录历史
+        self.fitness_history.append(self.gbest_fitness)
+        diversity = self.calculate_diversity()
+        self.diversity_history.append(diversity)
+        
+        # 基于多样性的调整
+        if len(self.diversity_history) > 10:
+            recent_div = np.mean(self.diversity_history[-10:])
+            initial_div = self.diversity_history[0]
+            div_ratio = recent_div / (initial_div + 1e-10)
+            
+            if div_ratio < 0.2:  # 多样性太低
+                self.w = min(0.95, self.w * 1.1)  # 增加探索
+            elif div_ratio > 0.8:  # 多样性太高
+                self.w = max(0.3, self.w * 0.95)  # 增加开发
+        
+        # 基于收敛的调整
+        if len(self.fitness_history) > 20:
+            improvement = self.fitness_history[-20] - self.fitness_history[-1]
+            if improvement < 1e-6:  # 停滞
+                self.w = min(0.95, self.w + 0.05)  # 增加探索
+```
 
-from abc import ABC, abstractmethod
-from typing import List, Tuple, Callable
+---
+
+# 动手实验：用PSO求解多峰函数优化问题
+
+理论讲了一大堆，是时候动手实验了。我们用PSO来求解几个经典的测试函数，观察不同参数下的表现。
+
+## 实验一：Rastrigin函数
+
+Rastrigin函数是个"坑爹"的多峰函数：有大量的局部最优，全局最优藏在密密麻麻的小坑里。公式是：
+
+$$
+f(x) = 10n + \sum_{i=1}^n \left[ x_i^2 - 10\cos(2\pi x_i) \right]
+$$
+
+全局最优在原点，值为0。
+
+```python
 import numpy as np
+import matplotlib.pyplot as plt
 
+def rastrigin(x):
+    A = 10
+    n = len(x)
+    return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
 
-class TopologyStrategy(ABC):
-    """拓扑策略接口"""
-    
-    @abstractmethod
-    def get_leader(self, fitness: np.ndarray, 
-                   pbest_positions: np.ndarray,
-                   positions: np.ndarray) -> np.ndarray:
-        pass
+# 实验设置
+dim = 10
+bounds = [(-5.12, 5.12)] * dim
+n_runs = 10
 
+# 测试不同惯性权重
+w_values = [0.3, 0.5, 0.7, 0.9]
+results = {}
 
-class GlobalBestTopology(TopologyStrategy):
-    """全局最优拓扑"""
-    
-    def get_leader(self, fitness: np.ndarray, 
-                   pbest_positions: np.ndarray,
-                   positions: np.ndarray) -> np.ndarray:
-        best_idx = np.argmin(fitness)
-        return pbest_positions[best_idx]
-
-
-class RingTopology(TopologyStrategy):
-    """环形拓扑"""
-    
-    def __init__(self, k: int = 2):
-        self.k = k
-    
-    def get_leader(self, fitness: np.ndarray,
-                   pbest_positions: np.ndarray,
-                   positions: np.ndarray) -> np.ndarray:
-        n = len(fitness)
-        leaders = np.zeros_like(positions)
-        
-        for i in range(n):
-            neighbors = [(i + j) % n for j in range(-self.k, self.k + 1)]
-            neighbor_fitness = fitness[neighbors]
-            leaders[i] = pbest_positions[neighbors[np.argmin(neighbor_fitness)]]
-        
-        return leaders
-
-
-class VelocityUpdateStrategy(ABC):
-    """速度更新策略接口"""
-    
-    @abstractmethod
-    def update(self, velocities: np.ndarray,
-               positions: np.ndarray,
-               pbest: np.ndarray,
-               leader: np.ndarray,
-               params: dict) -> np.ndarray:
-        pass
-
-
-class StandardVelocityUpdate(VelocityUpdateStrategy):
-    """标准速度更新"""
-    
-    def update(self, velocities: np.ndarray,
-               positions: np.ndarray,
-               pbest: np.ndarray,
-               leader: np.ndarray,
-               params: dict) -> np.ndarray:
-        w = params.get('w', 0.729)
-        c1 = params.get('c1', 1.49445)
-        c2 = params.get('c2', 1.49445)
-        
-        r1 = np.random.random(positions.shape)
-        r2 = np.random.random(positions.shape)
-        
-        return (w * velocities +
-                c1 * r1 * (pbest - positions) +
-                c2 * r2 * (leader - positions))
-
-
-class CompletePSOFramework:
-    """
-    完整的PSO框架
-    可配置的组件化设计
-    """
-    
-    def __init__(self,
-                 objective: Callable,
-                 bounds: List[Tuple[float, float]],
-                 topology: TopologyStrategy = None,
-                 velocity_update: VelocityUpdateStrategy = None):
-        self.objective = objective
-        self.bounds = bounds
-        self.dim = len(bounds)
-        
-        self.topology = topology or GlobalBestTopology()
-        self.velocity_update = velocity_update or StandardVelocityUpdate()
-        
-        self.bounds_array = np.array(bounds)
-        self.low_bounds = self.bounds_array[:, 0]
-        self.high_bounds = self.bounds_array[:, 1]
-        
-        self.params = {'w': 0.729, 'c1': 1.49445, 'c2': 1.49445}
-    
-    def initialize(self, n_particles: int = 30):
-        """初始化种群"""
-        self.n_particles = n_particles
-        
-        self.positions = np.random.uniform(
-            self.low_bounds, self.high_bounds,
-            (n_particles, self.dim)
+for w in w_values:
+    run_results = []
+    for run in range(n_runs):
+        pso = ParticleSwarmOptimizer(
+            objective=rastrigin,
+            dim=dim,
+            bounds=bounds,
+            n_particles=50,
+            w=w, c1=1.49445, c2=1.49445,
+            max_iter=500
         )
-        
-        self.v_max = (self.high_bounds - self.low_bounds) * 0.2
-        self.velocities = np.random.uniform(
-            -self.v_max, self.v_max,
-            (n_particles, self.dim)
-        )
-        
-        self.fitness = np.array([self.objective(p) for p in self.positions])
-        self.pbest = self.positions.copy()
-        self.pbest_fit = self.fitness.copy()
+        _, fitness = pso.run()
+        run_results.append(fitness)
+    results[w] = {
+        'mean': np.mean(run_results),
+        'std': np.std(run_results),
+        'min': np.min(run_results),
+        'max': np.max(run_results)
+    }
+
+# 打印结果
+print("Rastrigin函数 (10维) 测试结果:")
+print("="*60)
+for w, stats in results.items():
+    print(f"w={w}: 均值={stats['mean']:.2f}, 标准差={stats['std']:.2f}, "
+          f"最小={stats['min']:.2f}, 最大={stats['max']:.2f}")
+
+# 可视化收敛曲线
+plt.figure(figsize=(10, 6))
+for w in w_values:
+    pso = ParticleSwarmOptimizer(
+        objective=rastrigin,
+        dim=dim,
+        bounds=bounds,
+        n_particles=50,
+        w=w, c1=1.49445, c2=1.49445,
+        max_iter=500
+    )
+    pso.run()
+    plt.plot(pso.gbest_history, label=f'w={w}')
+
+plt.xlabel('迭代次数')
+plt.ylabel('最优适应度')
+plt.title('Rastrigin函数：不同惯性权重的收敛曲线')
+plt.legend()
+plt.grid(True)
+plt.yscale('log')
+plt.savefig('pso_rastrigin_convergence.png')
+```
+
+运行这个实验，你应该能看到：
+- $w=0.3$：收敛很快但容易陷入局部最优
+- $w=0.9$：探索能力强但收敛慢
+- $w=0.5$或$w=0.7$：平衡型参数，通常表现最好
+
+## 实验二：Ackley函数
+
+Ackley函数是另一个经典的多峰函数，形似一个"碗"底加上一系列"小山"：
+
+```python
+def ackley(x):
+    a = 20
+    b = 0.2
+    c = 2 * np.pi
+    sum1 = np.sum(x**2)
+    sum2 = np.sum(np.cos(c * x))
+    term1 = -a * np.exp(-b * np.sqrt(sum1 / len(x)))
+    term2 = -np.exp(sum2 / len(x))
+    return term1 + term2 + a + np.e
+
+# 高维测试
+dims = [10, 30, 50]
+results_ackley = {}
+
+for dim in dims:
+    bounds = [(-32.768, 32.768)] * dim
+    pso = ParticleSwarmOptimizer(
+        objective=ackley,
+        dim=dim,
+        bounds=bounds,
+        n_particles=50,
+        max_iter=1000
+    )
+    _, fitness = pso.run()
+    results_ackley[dim] = fitness
+    print(f"Ackley {dim}维: 最优值 = {fitness:.6f}")
+```
+
+## 实验三：可视化粒子轨迹
+
+想直观理解PSO是怎么搜索的？我们可以可视化二维情况下粒子的轨迹：
+
+```python
+def visualize_2d_pso(objective, bounds, n_particles=30, max_iter=100):
+    """可视化二维PSO搜索过程"""
     
-    def step(self):
-        """执行一步"""
-        # 获取领导者
-        leader = self.topology.get_leader(
-            self.pbest_fit, self.pbest, self.positions
-        )
+    pso = ParticleSwarmOptimizer(
+        objective=objective,
+        dim=2,
+        bounds=bounds,
+        n_particles=n_particles,
+        max_iter=max_iter
+    )
+    pso.initialize()
+    
+    # 记录轨迹
+    trajectory = [pso.positions.copy()]
+    
+    for _ in range(max_iter):
+        pso.update_velocities()
+        pso.update_positions()
+        pso.evaluate()
+        trajectory.append(pso.positions.copy())
+    
+    # 绘制等高线
+    fig, ax = plt.subplots(figsize=(10, 8))
+    x = np.linspace(bounds[0][0], bounds[0][1], 100)
+    y = np.linspace(bounds[1][0], bounds[1][1], 100)
+    X, Y = np.meshgrid(x, y)
+    Z = np.array([[objective([xi, yi]) for xi, yi in zip(xrow, yrow)] 
+                  for xrow, yrow in zip(X, Y)])
+    
+    ax.contourf(X, Y, Z, levels=20, alpha=0.8)
+    ax.colorbar()
+    
+    # 绘制初始位置
+    ax.scatter(trajectory[0][:, 0], trajectory[0][:, 1], 
+               c='blue', s=50, marker='o', label='初始位置')
+    
+    # 绘制最终位置
+    ax.scatter(trajectory[-1][:, 0], trajectory[-1][:, 1], 
+               c='red', s=50, marker='x', label='最终位置')
+    
+    # 绘制全局最优轨迹
+    gbest_traj = [pso.gbest_position]
+    ax.scatter(gbest_traj[-1][0], gbest_traj[-1][1], 
+               c='green', s=200, marker='*', label='全局最优')
+    
+    ax.legend()
+    ax.set_xlabel('x1')
+    ax.set_ylabel('x2')
+    ax.set_title('PSO搜索轨迹可视化')
+    
+    plt.savefig('pso_trajectory.png')
+    plt.show()
+
+# 运行可视化
+visualize_2d_pso(rastrigin, [(-5.12, 5.12)] * 2)
+```
+
+---
+
+# 全局版与局部版PSO
+
+## gbest模型（全局版）
+
+gbest模型是PSO的默认配置：每个粒子都能看到整个种群找到的最优位置。
+
+**优点**：
+- 收敛速度快
+- 实现简单
+- 对于单峰问题效果很好
+
+**缺点**：
+- 容易早熟收敛
+- 对于复杂多峰问题可能陷入局部最优
+
+```python
+class GBestPSO(ParticleSwarmOptimizer):
+    """全局最优模型PSO"""
+    
+    def update_velocities(self):
+        r1 = np.random.random((self.n_particles, self.dim))
+        r2 = np.random.random((self.n_particles, self.dim))
         
-        # 更新速度
-        self.velocities = self.velocity_update.update(
-            self.velocities, self.positions, self.pbest, leader, self.params
-        )
+        cognitive = self.c1 * r1 * (self.pbest_positions - self.positions)
+        social = self.c2 * r2 * (self.gbest_position - self.positions)
+        
+        self.velocities = self.w * self.velocities + cognitive + social
         self.velocities = np.clip(self.velocities, -self.v_max, self.v_max)
-        
-        # 更新位置
-        self.positions += self.velocities
-        self.positions = np.clip(self.positions, self.low_bounds, self.high_bounds)
-        
-        # 评估
-        self.fitness = np.array([self.objective(p) for p in self.positions])
-        
-        # 更新pbest
-        improved = self.fitness < self.pbest_fit
-        self.pbest[improved] = self.positions[improved]
-        self.pbest_fit[improved] = self.fitness[improved]
-    
-    def run(self, max_iter: int = 1000):
-        """运行优化"""
-        for _ in range(max_iter):
-            self.step()
-        
-        best_idx = np.argmin(self.pbest_fit)
-        return self.pbest[best_idx], self.pbest_fit[best_idx]
 ```
+
+## lbest模型（局部版）
+
+lbest模型采用局部拓扑结构：每个粒子只与邻居交换信息，不直接知道全局最优。
+
+最常用的是环形拓扑：粒子$i$只和粒子$i-1$、$i+1$交换信息。
+
+**优点**：
+- 全局搜索能力强
+- 不容易早熟收敛
+- 对于多峰问题效果更好
+
+**缺点**：
+- 收敛速度较慢
+- 需要更多迭代次数
+
+```python
+class LBestPSO(ParticleSwarmOptimizer):
+    """局部最优模型PSO（环形拓扑）"""
+    
+    def __init__(self, *args, k=2, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.k = k  # 每侧邻居数量
+    
+    def initialize_topology(self):
+        """初始化环形拓扑"""
+        self.neighbors = {}
+        for i in range(self.n_particles):
+            neighbors = [(i + j) % self.n_particles for j in range(-self.k, self.k+1)]
+            self.neighbors[i] = neighbors
+    
+    def find_lbest(self):
+        """找到每个粒子的局部最优"""
+        lbest_positions = np.zeros((self.n_particles, self.dim))
+        for i in range(self.n_particles):
+            neighbor_indices = self.neighbors[i]
+            neighbor_fitness = self.pbest_fitness[neighbor_indices]
+            best_neighbor_idx = neighbor_indices[np.argmin(neighbor_fitness)]
+            lbest_positions[i] = self.pbest_positions[best_neighbor_idx]
+        return lbest_positions
+    
+    def update_velocities(self):
+        self.initialize_topology()
+        lbest = self.find_lbest()
+        
+        r1 = np.random.random((self.n_particles, self.dim))
+        r2 = np.random.random((self.n_particles, self.dim))
+        
+        cognitive = self.c1 * r1 * (self.pbest_positions - self.positions)
+        social = self.c2 * r2 * (lbest - self.positions)
+        
+        self.velocities = self.w * self.velocities + cognitive + social
+        self.velocities = np.clip(self.velocities, -self.v_max, self.v_max)
+```
+
+## 拓扑结构对比
+
+| 拓扑类型 | 收敛速度 | 全局搜索 | 稳定性 | 适用场景 |
+|---------|---------|---------|--------|---------|
+| gbest | 最快 | 最弱 | 较差 | 单峰问题 |
+| Ring | 较慢 | 最强 | 较好 | 多峰问题 |
+| Grid | 中等 | 中等 | 中等 | 通用 |
+| Von Neumann | 中等 | 较强 | 较好 | 大规模问题 |
 
 ---
 
-# 十七、常见问题与解决方案
+# 常见问题与解决方案
 
-## 17.1 收敛问题
+## 早熟收敛
 
-| 问题 | 症状 | 解决方案 |
-|------|------|----------|
-| 早熟收敛 | 适应度早期停滞 | 增加惯性权重，使用lbest拓扑 |
-| 收敛过慢 | 大量迭代后仍不收敛 | 减小惯性权重，增加学习因子 |
-| 振荡 | 粒子速度过大 | 减小速度限制，增大c1, c2 |
-| 发散 | 适应度越来越大 | 检查边界处理，增加阻尼 |
+**症状**：适应度在早期就停滞了，之后几乎不变。
 
-## 17.2 参数调优指南
+**原因**：种群多样性丧失，所有粒子聚集到局部最优附近。
 
-### 17.2.1 问题导向的参数选择
+**解决方案**：
+1. 增加惯性权重$w$
+2. 改用lbest拓扑
+3. 定期重新随机化部分粒子
+4. 加入变异操作
 
-```python
-class ProblemBasedParameterSelector:
-    """基于问题特征选择参数"""
-    
-    @staticmethod
-    def select_for_unimodal(objective_gradients=None):
-        """单峰问题"""
-        return {
-            'w': 0.729,
-            'c1': 1.49445,
-            'c2': 1.49445,
-            'topology': 'gbest'
-        }
-    
-    @staticmethod
-    def select_for_multimodal():
-        """多峰问题"""
-        return {
-            'w': 0.5,  # 较低惯性以增加探索
-            'c1': 1.5,
-            'c2': 1.5,
-            'topology': 'ring'
-        }
-    
-    @staticmethod
-    def select_for_high_dim(dim):
-        """高维问题"""
-        return {
-            'w': 0.6,
-            'c1': 1.5,
-            'c2': 1.5,
-            'n_particles': min(100, 10 * dim),
-            'topology': 'von_neumann'
-        }
-    
-    @staticmethod
-    def select_for_noisy():
-        """噪声环境"""
-        return {
-            'w': 0.4,  # 低惯性
-            'c1': 2.0,  # 强调认知
-            'c2': 0.5,
-            'n_particles': 100,
-            'topology': 'ring'
-        }
-```
+## 收敛太慢
 
-## 17.3 调试清单
+**症状**：迭代很多轮后仍然没有明显改进。
 
-```python
-class PSODebugger:
-    """PSO调试工具"""
-    
-    def __init__(self, optimizer):
-        self.optimizer = optimizer
-        self.debug_info = {
-            'velocity_magnitude': [],
-            'position_spread': [],
-            'fitness_variance': [],
-            'diversity': []
-        }
-    
-    def collect_debug_info(self):
-        """收集调试信息"""
-        # 速度幅度
-        vel_mag = np.mean(np.linalg.norm(self.optimizer.velocities, axis=1))
-        self.debug_info['velocity_magnitude'].append(vel_mag)
-        
-        # 位置分散度
-        spread = np.mean(np.std(self.optimizer.positions, axis=0))
-        self.debug_info['position_spread'].append(spread)
-        
-        # 适应度方差
-        fit_var = np.var(self.optimizer.fitness)
-        self.debug_info['fitness_variance'].append(fit_var)
-        
-        # 多样性
-        centroid = np.mean(self.optimizer.positions, axis=0)
-        diversity = np.mean(np.linalg.norm(
-            self.optimizer.positions - centroid, axis=1
-        ))
-        self.debug_info['diversity'].append(diversity)
-    
-    def diagnose_issues(self):
-        """诊断问题"""
-        issues = []
-        
-        vm = self.debug_info['velocity_magnitude']
-        if vm and vm[-1] < 0.01:
-            issues.append("Velocity too low - consider increasing w")
-        if vm and vm[-1] > 10:
-            issues.append("Velocity too high - consider decreasing w or v_max")
-        
-        div = self.debug_info['diversity']
-        if div and div[-1] < 0.1:
-            issues.append("Low diversity - risk of premature convergence")
-        
-        return issues
-    
-    def generate_report(self):
-        """生成诊断报告"""
-        return {
-            'final_velocity_magnitude': self.debug_info['velocity_magnitude'][-1],
-            'final_position_spread': self.debug_info['position_spread'][-1],
-            'final_fitness_variance': self.debug_info['fitness_variance'][-1],
-            'final_diversity': self.debug_info['diversity'][-1],
-            'issues': self.diagnose_issues()
-        }
-```
+**原因**：$w$太小，或者$c_1, c_2$太小。
+
+**解决方案**：
+1. 减小惯性权重$w$
+2. 增大学习因子$c_1, c_2$
+3. 增大粒子数量
+4. 使用更小的搜索空间（如果问题允许）
+
+## 粒子"爆炸"
+
+**症状**：粒子的位置和速度变得非常大，超出边界。
+
+**原因**：速度没有限制，或者限制太大。
+
+**解决方案**：
+1. 减小速度限制$v_{max}$
+2. 使用收缩因子
+3. 检查边界处理代码
+
+## 发散
+
+**症状**：适应度值越来越大，完全不收敛。
+
+**原因**：目标函数计算可能有bug，或者参数设置完全不对。
+
+**解决方案**：
+1. 检查目标函数实现
+2. 尝试更保守的参数（$w$小一些）
+3. 降低学习因子
 
 ---
 
-# 十八、参考文献
+# 总结
+
+PSO是一个简洁但强大的优化算法。核心思想就是：每个粒子在解空间里飞，一边参考自己的经验，一边参考同伴的经验，最终找到最优解。
+
+学会PSO，你就能：
+- 优化连续函数
+- 训练神经网络权重
+- 解决组合优化问题
+- 调参超参数优化
+- 工程设计问题
+
+关键是理解三个参数的作用：惯性权重$w$控制探索-开发平衡，认知系数$c_1$控制"相信自己"，社会系数$c_2$控制"相信群体"。
+
+多峰问题用大$w$和lbest拓扑，单峰问题用小$w$和gbest拓扑，这是最基本的调参思路。
+
+剩下的就是多实践、多实验。纸上得来终觉浅，绝知此事要躬行。
+
+---
+
+# 参考文献
 
 1. Kennedy, J., & Eberhart, R. (1995). Particle Swarm Optimization. *Proceedings of IEEE International Conference on Neural Networks*, 4, 1942-1948.
+
 2. Shi, Y., & Eberhart, R. C. (1998). A Modified Particle Swarm Optimizer. *Proceedings of IEEE International Conference on Evolutionary Computation*, 69-73.
+
 3. Clerc, M., & Kennedy, J. (2002). The Particle Swarm - Explosion, Stability, and Convergence in a Multidimensional Complex Space. *IEEE Transactions on Evolutionary Computation*, 6(1), 58-73.
+
 4. Kennedy, J., & Eberhart, R. C. (1997). A Discrete Binary Version of the Particle Swarm Algorithm. *Proceedings of IEEE International Conference on Systems, Man, and Cybernetics*, 4104-4108.
+
 5. Poli, R., Kennedy, J., & Blackwell, T. (2007). Particle Swarm Optimization: An Overview. *Swarm Intelligence*, 1(1), 33-57.
-6. Eberhart, R. C., & Shi, Y. (2001). Particle Swarm Optimization: Developments, Applications and Resources. *Proceedings of the 2001 Congress on Evolutionary Computation*, 1, 81-86.
-7. Van den Bergh, F., & Engelbrecht, A. P. (2004). A Cooperative Approach to Particle Swarm Optimization. *IEEE Transactions on Evolutionary Computation*, 8(3), 225-239.
-8. Mendes, R., Kennedy, J., & Neves, J. (2004). The Fully Informed Particle Swarm: Simpler, Maybe Better. *IEEE Transactions on Evolutionary Computation*, 8(3), 204-210.
-9. Zhan, Z. H., et al. (2009). Adaptive Particle Swarm Optimization. *IEEE Transactions on Systems, Man, and Cybernetics*, 39(6), 1362-1381.
-10. Liu, Q., et al. (2015). Order of Magnitude Improved Particle Swarm Optimizer. *Information Sciences*, 320, 73-94.
 
 ---
 

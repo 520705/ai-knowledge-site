@@ -3322,3 +3322,835 @@ export default AIChat;
 
 > [!SUCCESS]
 > 本文档涵盖了 Tailwind CSS 的完整知识体系，从基础概念到高级配置，从响应式设计到性能优化。希望这份详尽的指南能帮助你全面掌握 Tailwind CSS，在实际项目中发挥其最大价值。记住，最好的工具是能够帮助你更高效工作的工具，而 Tailwind CSS 正是为此而生。
+
+---
+
+## Tailwind 与前端框架的深度集成
+
+### Tailwind CSS 在前端生态中的定位
+
+在现代前端开发的版图中，Tailwind CSS 已经成为原子化 CSS 阵营的代表性框架。它与各种前端框架的集成方式各有特点，理解这些差异对于选择正确的技术方案至关重要。Tailwind 在前端元框架中的定位不仅仅是样式解决方案，更是一种开发范式的选择——它代表了一种「约束即自由」的设计哲学，通过预定义的工具类来确保样式的一致性和开发效率。
+
+当我们谈论 Tailwind 与前端框架的集成时，需要从两个维度来理解：开发体验（DX）和生产性能。开发体验包括热更新速度、类型提示完整性、IDE 支持程度等；生产性能则关注最终产物的体积、加载时间、Core Web Vitals 指标等。不同的框架与 Tailwind 的集成方式会在这两个维度上产生不同的权衡。
+
+### Tailwind 与 Next.js 的集成
+
+Next.js 是目前最流行的 React 元框架，其 App Router 和 Pages Router 两种模式与 Tailwind 的集成方式略有不同。Next.js 本身对 CSS 有着良好的支持，包括 CSS Modules、CSS-in-JS、以及 Tailwind 这样的原子化 CSS 方案。在 Next.js 项目中使用 Tailwind，可以获得极佳的开发体验和优秀的生产性能。
+
+**App Router 模式下的集成方式：**
+
+Next.js 13 引入的 App Router 采用了React Server Components 范式，这要求 Tailwind 的配置需要考虑服务端渲染的特性。在 App Router 模式下，Tailwind 的配置与传统的 Pages Router 基本一致，但由于服务端组件的特殊性，某些客户端特有的功能（如 CSS 变量的动态切换）需要额外注意。
+
+```typescript
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Tailwind 会自动处理 PostCSS 配置
+  // 这里主要配置 Next.js 相关的优化选项
+  
+  // 启用实验性的编译时优化
+  experimental: {
+    // 可以启用 serverActions 等新特性
+  },
+  
+  // 图片优化配置
+  images: {
+    domains: ['images.unsplash.com'],
+    formats: ['image/avif', 'image/webp'],
+  },
+};
+
+module.exports = nextConfig;
+```
+
+```css
+/* app/globals.css */
+@import "tailwindcss";
+
+/* 在 App Router 中定义主题变量 */
+@theme {
+  --color-primary: oklch(55% 0.2 250);
+  --color-secondary: oklch(60% 0.18 180);
+  
+  /* 暗色模式变量 */
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+}
+
+/* 暗色模式样式 */
+.dark {
+  --color-background: #0f172a;
+  --color-foreground: #f8fafc;
+}
+
+/* 基础样式 */
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
+```
+
+```typescript
+/* app/layout.tsx */
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Tailwind + Next.js App',
+  description: '使用 Tailwind CSS 和 Next.js App Router 构建的现代应用',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className="antialiased min-h-screen bg-white dark:bg-slate-900">
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+**Pages Router 模式下的集成：**
+
+```typescript
+// tailwind.config.ts
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  darkMode: 'class', // 使用类名方式控制暗色模式
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          50: 'oklch(97% 0.01 250)',
+          500: 'oklch(55% 0.2 250)',
+          900: 'oklch(40% 0.15 250)',
+        },
+      },
+    },
+  },
+  plugins: [
+    require('@tailwindcss/typography'),
+    require('@tailwindcss/forms'),
+  ],
+};
+
+export default config;
+```
+
+**Next.js 中的性能优化注意事项：**
+
+Next.js 项目中使用 Tailwind 时，需要注意服务端渲染带来的特殊考量。Tailwind 生成的 CSS 在服务端和客户端是一致的，这保证了样式不会出现闪烁。但某些动态功能（如主题切换）需要在客户端执行 JavaScript 来完成。
+
+```typescript
+/* components/ThemeProvider.tsx */
+'use client';
+
+import { createContext, useContext, useEffect, useState } from 'react';
+
+type Theme = 'light' | 'dark';
+
+const ThemeContext = createContext<{
+  theme: Theme;
+  toggleTheme: () => void;
+}>({
+  theme: 'light',
+  toggleTheme: () => {},
+});
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>('light');
+
+  useEffect(() => {
+    // 从 localStorage 读取保存的主题
+    const savedTheme = localStorage.getItem('theme') as Theme;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export const useTheme = () => useContext(ThemeContext);
+```
+
+### Tailwind 与 Nuxt 的集成
+
+Nuxt 是 Vue 生态中最流行的元框架，其文件路由、自动导入、SSR 支持等特性与 Tailwind 的集成需要特别注意配置方式。Nuxt 3 使用的是 Vite 作为默认构建工具，这使得 Tailwind 的集成变得相当直接。
+
+**Nuxt 3 项目配置：**
+
+```typescript
+// nuxt.config.ts
+export default defineNuxtConfig({
+  devtools: { enabled: true },
+  
+  // CSS 配置
+  css: ['~/assets/css/main.css'],
+  
+  // PostCSS 配置
+  postcss: {
+    plugins: {
+      tailwindcss: {},
+      autoprefixer: {},
+    },
+  },
+  
+  // 应用配置
+  app: {
+    head: {
+      title: 'Tailwind + Nuxt',
+      meta: [
+        { name: 'description', content: '使用 Tailwind CSS 和 Nuxt 3 构建' },
+      ],
+      link: [
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
+      ],
+    },
+  },
+  
+  // 模块扩展
+  modules: [],
+  
+  // TypeScript 配置
+  typescript: {
+    strict: true,
+  },
+});
+```
+
+```css
+/* assets/css/main.css */
+@import "tailwindcss";
+
+/* Nuxt 中使用 @theme 定义设计系统 */
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-900: #1e3a8a;
+  
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+}
+
+/* Nuxt 的 CSS 层叠顺序 */
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+}
+```
+
+**Vue 组件中的使用方式：**
+
+```vue
+<!-- components/Button.vue -->
+<script setup lang="ts">
+interface Props {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  variant: 'primary',
+  size: 'md',
+  disabled: false,
+  loading: false,
+});
+
+const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+
+const variants = {
+  primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-blue-300',
+  secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 dark:bg-gray-700 dark:text-gray-100',
+  outline: 'border-2 border-gray-300 hover:bg-gray-100 focus:ring-gray-500 dark:border-gray-600 dark:hover:bg-gray-800',
+  ghost: 'hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500',
+};
+
+const sizes = {
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2 text-base',
+  lg: 'px-6 py-3 text-lg',
+};
+</script>
+
+<template>
+  <button
+    :class="[
+      baseStyles,
+      variants[props.variant],
+      sizes[props.size],
+      { 'opacity-50 cursor-not-allowed': props.disabled || props.loading }
+    ]"
+    :disabled="props.disabled || props.loading"
+  >
+    <svg
+      v-if="props.loading"
+      class="animate-spin -ml-1 mr-2 h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+    <slot />
+  </button>
+</template>
+```
+
+### Tailwind 与 SvelteKit 的集成
+
+SvelteKit 是 Svelte 框架的官方元框架，其编译器优先的设计理念与 Tailwind 的原子化 CSS 在理念上有一定的相似性——两者都强调编译时优化和最小运行时开销。SvelteKit 使用 Vite 作为构建工具，这使得 Tailwind 的集成相对简单。
+
+**SvelteKit 项目配置：**
+
+```typescript
+// svelte.config.js
+import adapter from '@sveltejs/adapter-auto';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  preprocess: vitePreprocess(),
+  kit: {
+    adapter: adapter(),
+    alias: {
+      $components: 'src/lib/components',
+      $utils: 'src/lib/utils',
+    },
+  },
+};
+
+export default config;
+```
+
+```typescript
+// vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [tailwindcss(), sveltekit()],
+});
+```
+
+```css
+/* src/app.css */
+@import "tailwindcss";
+
+/* SvelteKit 中的 Tailwind 配置 */
+@theme {
+  --color-svelte: #ff3e00;
+  --color-brand: oklch(55% 0.2 250);
+  
+  /* Svelte 主题变量 */
+  --color-surface: #ffffff;
+  --color-surface-dark: #1a1a1a;
+}
+
+/* 全局样式 */
+@layer base {
+  body {
+    font-family: system-ui, sans-serif;
+  }
+}
+```
+
+**Svelte 组件中的使用：**
+
+```svelte
+<!-- src/lib/components/Card.svelte -->
+<script lang="ts">
+  export let variant: 'default' | 'elevated' | 'outlined' = 'default';
+  export let padding: 'none' | 'sm' | 'md' | 'lg' = 'md';
+  
+  const variantStyles = {
+    default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
+    elevated: 'bg-white dark:bg-gray-800 shadow-lg dark:shadow-gray-900/50',
+    outlined: 'bg-transparent border-2 border-gray-300 dark:border-gray-600',
+  };
+  
+  const paddingStyles = {
+    none: '',
+    sm: 'p-3',
+    md: 'p-4',
+    lg: 'p-6',
+  };
+</script>
+
+<div class="rounded-xl transition-shadow {variantStyles[variant]} {paddingStyles[padding]}">
+  <slot />
+</div>
+```
+
+### Tailwind 与 Astro 的集成
+
+Astro 是近年来快速崛起的静态站点生成器，其「群岛架构」（Islands Architecture）使其在内容密集型网站中表现出色。Astro 支持多种 UI 框架作为组件使用，同时也支持纯 HTML/CSS 组件。Tailwind 与 Astro 的集成充分利用了 Astro 的零 JavaScript 哲学——Tailwind 生成的 CSS 完全静态，无需任何运行时。
+
+**Astro 项目配置：**
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import tailwind from '@astrojs/tailwind';
+
+export default defineConfig({
+  integrations: [tailwind()],
+  // Astro 的输出模式
+  output: 'static', // 或 'server' 用于 SSR
+  // 图片优化
+  image: {
+    service: {
+      entrypoint: 'astro/assets/services/sharp',
+    },
+  },
+});
+```
+
+```css
+/* src/styles/global.css */
+@import "tailwindcss";
+
+@theme {
+  /* Astro 项目通常有更明确的品牌要求 */
+  --color-brand: #6366f1;
+  --color-brand-dark: #4f46e5;
+  
+  /* 内容类网站的排版系统 */
+  --font-serif: 'Georgia', serif;
+  --font-sans: system-ui, sans-serif;
+  
+  /* 内容宽度约束 */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+  
+  /* 文章内容样式 */
+  .prose {
+    max-width: 65ch;
+  }
+}
+```
+
+**Astro 组件中的使用：**
+
+```astro
+---
+// src/components/Header.astro
+const navigation = [
+  { name: '首页', href: '/' },
+  { name: '关于', href: '/about' },
+  { name: '文章', href: '/blog' },
+  { name: '联系', href: '/contact' },
+];
+---
+
+<header class="border-b border-gray-200 dark:border-gray-800">
+  <nav class="container mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-bold text-gray-900 dark:text-white">
+      我的网站
+    </a>
+    
+    <ul class="flex items-center gap-6">
+      {navigation.map((item) => (
+        <li>
+          <a
+            href={item.href}
+            class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+          >
+            {item.name}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</header>
+```
+
+### Tailwind 与 Remix 的集成
+
+Remix 是一个全栈 Web 框架，强调渐进增强和优秀的性能。Remix 使用 Vite 作为构建工具（新版），与 Tailwind 的集成遵循标准的 Vite + Tailwind 配置模式。Remix 的Loader/Action 模式使得数据获取和表单处理变得优雅，而 Tailwind 则负责呈现这些数据的样式。
+
+**Remix 项目配置：**
+
+```typescript
+// vite.config.ts
+import { vitePlugin as remix } from '@remix-run/dev';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  plugins: [
+    remix(),
+    tailwindcss(),
+  ],
+});
+```
+
+```css
+/* app/tailwind.css */
+@import "tailwindcss";
+
+@theme {
+  --color-primary: oklch(50% 0.2 250);
+  --color-secondary: oklch(60% 0.15 180);
+  
+  /* Remix 应用特有的间距系统 */
+  --spacing-gutter: 1rem;
+}
+
+/* 表单样式（Remix 大量使用表单） */
+@layer components {
+  .form-input {
+    @apply w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+  
+  .form-error {
+    @apply text-sm text-red-600 dark:text-red-400 mt-1;
+  }
+}
+```
+
+```typescript
+/* app/routes/_index.tsx */
+import type { MetaFunction } from '@remix-run/node';
+import { Form, useActionData, useNavigation } from '@remix-run/react';
+
+export const meta: MetaFunction = () => {
+  return [
+    { title: 'Remix + Tailwind 应用' },
+    { name: 'description', content: '使用 Remix 和 Tailwind CSS 构建' },
+  ];
+};
+
+export default function Index() {
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === 'submitting';
+  
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
+      <div className="container mx-auto px-4 max-w-md">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">
+          欢迎使用 Remix + Tailwind
+        </h1>
+        
+        <Form method="post" className="space-y-6">
+          <div>
+            <label htmlFor="email" className="form-label">
+              邮箱地址
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              className="form-input"
+              placeholder="your@email.com"
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="password" className="form-label">
+              密码
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              className="form-input"
+            />
+          </div>
+          
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSubmitting ? '提交中...' : '登录'}
+          </button>
+        </Form>
+      </div>
+    </div>
+  );
+}
+```
+
+### Tailwind 独立使用 vs 配合组件库
+
+在实际项目中，一个常见的决策点是：是否在 Tailwind 之外引入组件库。这个决策取决于多个因素，包括项目规模、定制需求、团队经验等。
+
+**仅使用 Tailwind 的场景：**
+
+当你的项目需要高度定制化的设计系统，或者团队已经熟悉 Tailwind 的开发模式时，单独使用 Tailwind 可以获得最大的灵活性和最小的依赖。使用 Tailwind 构建组件库需要更多的前期投入，但换来的是完全可控的代码和样式。
+
+```typescript
+/* 自己构建的组件库示例 */
+/* components/ui/Button.tsx */
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'destructive' | 'ghost';
+  size?: 'sm' | 'md' | 'lg' | 'icon';
+  isLoading?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
+    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+    
+    const variants = {
+      primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
+      secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 dark:bg-gray-800 dark:text-gray-100',
+      destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+      ghost: 'hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500',
+    };
+    
+    const sizes = {
+      sm: 'h-9 px-3 text-sm',
+      md: 'h-10 px-4',
+      lg: 'h-11 px-8 text-lg',
+      icon: 'h-10 w-10',
+    };
+    
+    return (
+      <button
+        ref={ref}
+        className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className || ''}`}
+        disabled={disabled || isLoading}
+        {...props}
+      >
+        {isLoading && (
+          <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        )}
+        {children}
+      </button>
+    );
+  }
+);
+
+Button.displayName = 'Button';
+
+export { Button };
+```
+
+**配合 shadcn/ui 的场景：**
+
+shadcn/ui 是一个特殊的「组件库」——它不是传统的 npm 包形式发布，而是以源代码片段的形式提供，你可以直接复制、修改、拥有这些组件的代码。shadcn/ui 配合 Tailwind 使用，提供了一套高质量的设计系统组件，同时保持了完全的定制能力。
+
+```bash
+# 初始化 shadcn/ui
+npx shadcn@latest init
+
+# 添加组件
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add dialog
+npx shadcn@latest add dropdown-menu
+```
+
+```typescript
+/* 使用 shadcn/ui 组件 */
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+function SignUpForm() {
+  return (
+    <Card className="w-[350px]">
+      <CardHeader>
+        <CardTitle>创建账户</CardTitle>
+        <CardDescription>
+          输入您的邮箱地址开始使用
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">邮箱</Label>
+            <Input id="email" type="email" placeholder="your@email.com" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">密码</Label>
+            <Input id="password" type="password" />
+          </div>
+        </form>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button variant="outline">取消</Button>
+        <Button>注册</Button>
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+**选择建议：**
+
+小型项目或原型开发，使用纯 Tailwind 即可快速构建；中型项目且需要一致性，shadcn/ui 是绝佳选择；大型项目或有特殊设计要求，在 Tailwind 基础上构建自己的组件库。需要注意的是，shadcn/ui 的组件使用 Radix UI 作为无障碍底层，这意味着你获得了开箱即用的无障碍支持，同时保持了样式的完全可控性。
+
+### Tailwind + Vite 的开发与生产优化
+
+Vite 是目前与 Tailwind 配合最佳的构建工具，两者的集成非常顺畅。在开发阶段，Vite 的快速热更新使得 Tailwind 的样式修改能够即时反映在浏览器中；在生产构建时，两者都能生成极小的产物。
+
+**开发环境配置：**
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  // 开发服务器配置
+  server: {
+    port: 3000,
+    open: true,
+    // 代理配置
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+  // CSS 配置
+  css: {
+    // 启用 CSS source maps
+    devSourcemap: true,
+  },
+});
+```
+
+**生产环境配置：**
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { compression } from 'vite-plugin-compression';
+import { visualizer } from 'rollup-plugin-visualizer';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    // gzip 压缩
+    compression({
+      algorithm: 'gzip',
+      ext: '.gz',
+    }),
+    // 打包分析
+    visualizer({
+      open: true,
+      gzipSize: true,
+    }),
+  ],
+  build: {
+    // CSS 代码分割
+    cssCodeSplit: true,
+    // 启用 CSS tree shaking
+    cssMinify: 'lightningcss',
+    // 目标浏览器
+    target: 'esnext',
+    // 输出目录
+    outDir: 'dist',
+    // 静态资源内联阈值
+    assetsInlineLimit: 4096,
+    // 分块策略
+    rollupOptions: {
+      output: {
+        // 手动分包
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+        },
+        // 输出文件名哈希
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+      },
+    },
+  },
+});
+```
+
+### Tailwind 文档体系的层级划分
+
+在整个知识库中，Tailwind 相关的文档分布在不同的章节，它们各自承担不同的职责，共同构成了完整的 Tailwind 学习路径。理解这些文档之间的关系，可以帮助我们更好地规划学习路线和查找所需信息。
+
+**03-前端元框架/Tailwind-CSS.md** 是 Tailwind 的入门和框架集成文档，它从宏观的角度介绍 Tailwind 的核心概念、与各种前端框架的集成方式、以及何时选择 Tailwind 配合组件库。这份文档的目标读者是想要了解 Tailwind 生态全景的开发者，以及需要在特定框架中使用 Tailwind 的实践者。
+
+**09-CSS与设计体系/CSS性能优化.md** 中的 Tailwind 优化部分是 Tailwind 生产环境优化的专项文档，它详细讲解了如何配置 Tailwind 以获得最佳的构建产物，如何减少 CSS 体积，如何实现关键 CSS 内联等性能相关的主题。这份文档适合已经掌握 Tailwind 基础，想要在生产环境中优化性能的开发者。
+
+**09-CSS与设计体系/Tailwind-CSS深度指南.md** 是 Tailwind 的深度专题文档，它深入探讨 Tailwind 的高级特性，包括自定义工具类、插件开发、复杂配置等主题。这份文档适合想要精通 Tailwind，能够为团队定制 Tailwind 配置的开发者。
+
+这三个层次的文档相互补充，形成了一个从入门到精通的完整学习路径。初学者可以从 03 的概述开始，了解 Tailwind 的基本概念和框架集成；有一定经验的开发者可以参考 09 的性能优化专题，将 Tailwind 应用到生产项目中；想要深入定制的开发者则可以阅读深度指南，掌握 Tailwind 的高级用法。
+
+---
+
+> [!RELATED]
+> - [[09-CSS与设计体系/CSS性能优化]] - Tailwind 生产构建优化
+> - [[09-CSS与设计体系/设计系统与组件化]] - 组件化设计实践
+> - [[03-前端元框架/Vite]] - Vite 构建工具详解
+> - [[11-构建工具与工程化/Vite深度指南]] - Vite 高级配置

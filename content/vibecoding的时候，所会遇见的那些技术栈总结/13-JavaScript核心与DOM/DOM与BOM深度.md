@@ -1,3 +1,14 @@
+---
+date: 2026-04-24
+tags:
+  - JavaScript
+  - DOM
+  - BOM
+  - 浏览器API
+  - 前端基础
+description: DOM 节点操作、BOM 核心对象、IntersectionObserver、ResizeObserver、MutationObserver 的深度解析。
+---
+
 # DOM与BOM深度
 
 ## 概述

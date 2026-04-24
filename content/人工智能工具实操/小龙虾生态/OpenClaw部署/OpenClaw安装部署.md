@@ -1,120 +1,418 @@
 ---
-title: OpenClaw安装部署
-date: 2026-04-18
+title: OpenClaw安装部署完全指南
+date: 2026-04-24
 tags:
-  - 安装部署
+  - OpenClaw
+  - 安装教程
   - Docker
-  - 源码
-  - Python-3.11
-  - GPU配置
-  - 多平台
-  - Linux
-  - macOS
-  - Windows
-  - 硬件要求
+  - 部署
+  - npm
+  - 小白教程
 categories:
+  - 人工智能工具实操
   - 小龙虾生态
-  - OpenClaw部署
-alias: OpenClaw Installation and Deployment
+  - 安装部署
+description: 零基础安装OpenClaw，从环境准备到运行起来，每一步都有截图级别的详细说明。
 ---
 
-# OpenClaw 安装部署
+# OpenClaw 安装部署完全指南
 
-> [!note] 文档信息
-> 本文详细介绍 OpenClaw 的各种部署方式，包括 Docker 部署、源码安装、多平台支持、GPU 配置等完整指南。
-
----
-
-## 关键词速览
-
-| 关键词 | 说明 |
-|--------|------|
-| Docker | 容器化部署方案 |
-| 源码安装 | 从源码编译安装 |
-| Python 3.11+ | Python 版本要求 |
-| GPU配置 | CUDA 加速支持 |
-| Linux | Linux 系统部署 |
-| macOS | macOS 系统部署 |
-| Windows | Windows 系统部署 |
-| 环境变量 | 配置管理 |
-| systemd | 服务管理 |
-| 硬件要求 | 系统资源需求 |
+> 这篇教程专门写给完全没有技术背景的同学。手把手，每一步都讲清楚，遇到问题照着排查就行。
 
 ---
 
-## 一、系统要求
+## 先搞清楚：安装方式有哪些？
 
-### 1.1 硬件要求
+OpenClaw 支持三种安装方式，选一个适合你的：
 
-| 组件 | 最低配置 | 推荐配置 |
-|------|----------|----------|
-| **CPU** | 2 核心 | 4+ 核心 |
-| **内存** | 4 GB | 8+ GB |
-| **磁盘** | 10 GB | 50+ GB SSD |
-| **网络** | 稳定互联网 | 高速连接 |
+| 方式 | 适合人群 | 难度 | 备注 |
+|------|----------|------|------|
+| **Docker（推荐）** | 99% 的用户 | ⭐ | 装一次，以后升级方便 |
+| **npm** | 不想装 Docker | ⭐⭐ | 需要懂一点命令行 |
+| **源码** | 开发者/想改代码 | ⭐⭐⭐ | 需要 Node.js 基础 |
 
-### 1.2 软件要求
-
-| 软件 | 版本要求 | 说明 |
-|------|----------|------|
-| **Python** | ≥ 3.11 | 必须 |
-| **Docker** | ≥ 20.10 | 推荐 |
-| **Git** | 最新版 | 源码安装需要 |
-| **pip** | 最新版 | 包管理 |
-
-### 1.3 LLM API 要求
-
-> [!tip] 注意
-> OpenClaw 本身不运行 AI 模型，需要配置 LLM API（如 OpenAI、Anthropic 等）才能正常工作。
+**强烈建议用 Docker**，除非你知道自己在干什么。
 
 ---
 
-## 二、Docker 部署（推荐）
+## 方式一：Docker 安装（手把手版）
 
-### 2.1 快速部署
+### 第一步：安装 Docker
+
+Docker 是什么？你可以把它理解为一个"轻量级虚拟机"，软件装在里面不会影响你的电脑。
+
+**macOS 用户：**
+
+1. 打开 App Store，搜索 "Docker Desktop"
+2. 点击安装（安装包大约 600MB）
+3. 安装完成后打开 Docker Desktop
+4. 等待看到 Docker 图标栏显示 "Docker Desktop is running"
+
+**Windows 用户：**
+
+1. 去 https://www.docker.com/products/docker-desktop/ 下载
+2. 双击安装包，一路 Next
+3. **注意**：需要开启 WSL2 或 Hyper-V（安装程序会提示你）
+
+**Linux 用户（Ubuntu 为例）：**
 
 ```bash
-# 1. 拉取官方镜像
-docker pull openclaw/openclaw:latest
+# 一键安装脚本
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# 2. 创建配置目录
-mkdir -p ~/openclaw/{config,data,plugins,memory}
+# 把当前用户加入 docker 组（免 sudo）
+sudo usermod -aG docker $USER
+# 重新登录后生效
+```
 
-# 3. 创建配置文件
-cat > ~/openclaw/config/config.yaml << 'EOF'
-openclaw:
-  version: "2.x"
-  
+### 第二步：验证 Docker 装好了
+
+打开终端（macOS 按 Cmd+空格，搜 "Terminal"），输入：
+
+```bash
+docker --version
+```
+
+如果看到类似 `Docker version 24.x.x` 这样的输出，恭喜你，装好了！
+
+### 第三步：创建配置文件夹
+
+```bash
+# 创建目录
+mkdir -p ~/openclaw/config
+mkdir -p ~/openclaw/data
+mkdir -p ~/openclaw/plugins
+
+# 进入目录
+cd ~/openclaw
+```
+
+> `~` 代表你的用户主目录，比如 `/Users/你的名字/`
+
+### 第四步：创建配置文件
+
+**新建一个 `config.yaml` 文件**：
+
+```yaml
+# llm = 大语言模型，就是 GPT、Claude 这些
 llm:
-  provider: "anthropic"
-  model: "claude-sonnet-4-20250514"
-  api_key: "${ANTHROPIC_API_KEY}"
+  provider: "anthropic"                    # 用哪家？anthropic = Claude
+  model: "claude-sonnet-4-20250514"         # 具体用哪个模型
+  api_key: "sk-ant-api03-xxxxxxxxxxxxx"    # ⚠️ 改成你自己的 API Key
 
+# channels = 消息渠道，就是你要接哪些聊天软件
 channels:
   telegram:
-    enabled: true
-    bot_token: "${TELEGRAM_BOT_TOKEN}"
-EOF
+    enabled: false                          # 暂时不接，先跑起来再说
+  
+# system = 系统设置
+system:
+  prompt: "你是一个友好的中文AI助手，请用中文回答。"
+```
 
-# 4. 启动容器
+> **关于 API Key**：去 [Anthropic 官网](https://console.anthropic.com/) 注册账号，然后在 API Keys 页面创建一个。
+
+### 第五步：拉取镜像并启动
+
+```bash
+# 拉取 OpenClaw 镜像（第一次会下载大约 1GB）
+docker pull openclaw/openclaw:latest
+
+# 启动！
 docker run -d \
   --name openclaw \
-  --restart unless-stopped \
   -p 18789:18789 \
-  -p 8080:8080 \
   -v ~/openclaw/config:/app/config \
   -v ~/openclaw/data:/app/data \
   -v ~/openclaw/plugins:/app/plugins \
-  -v ~/openclaw/memory:/app/memory \
-  -e ANTHROPIC_API_KEY="your-api-key" \
-  -e TELEGRAM_BOT_TOKEN="your-bot-token" \
+  --restart unless-stopped \
   openclaw/openclaw:latest
 ```
 
-### 2.2 Docker Compose 部署
+### 第六步：验证成功了没？
+
+```bash
+# 查看容器状态
+docker ps
+
+# 应该看到类似这样的输出：
+# CONTAINER ID   IMAGE   COMMAND   STATUS   PORTS
+# abc123def456   openclaw  ...      Up      0.0.0.0:18789->18789/tcp
+
+# 查看启动日志
+docker logs openclaw
+```
+
+如果最后几行显示类似这样的内容：
+
+```
+✅ Gateway listening on port 18789
+✅ OpenClaw started successfully
+```
+
+**恭喜！安装成功！**
+
+### 第七步：打开控制面板看看
+
+打开浏览器，访问：
+
+```
+http://127.0.0.1:18789
+```
+
+你应该能看到 OpenClaw 的控制面板了。
+
+---
+
+## 方式二：npm 安装（不需要 Docker）
+
+如果你实在不想装 Docker，可以试试 npm 方式。
+
+### 第一步：安装 Node.js
+
+Node.js 是 JavaScript 的运行环境，npm 是它的包管理器。
+
+**macOS：**
+
+```bash
+# 用 Homebrew 安装（推荐）
+brew install node@22
+
+# 验证
+node --version   # 应该显示 v22.x.x
+npm --version    # 应该显示 10.x.x
+```
+
+**Windows：**
+
+去 https://nodejs.org/ 下载 LTS 版本（推荐 22.x），安装包会自动处理一切。
+
+**Linux：**
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# 验证
+node --version
+npm --version
+```
+
+### 第二步：安装 OpenClaw
+
+```bash
+# 全局安装（-g 表示装到系统目录）
+npm install -g openclaw@latest
+
+# 验证
+openclaw --version
+```
+
+### 第三步：引导配置
+
+```bash
+# 启动引导程序
+openclaw onboard
+```
+
+这个命令会问你一些问题：
+
+```
+? 选择安装方式 (Use arrow keys)
+❯ Docker
+  npm
+  源码
+```
+
+用键盘上下箭头选一项，回车确认。
+
+接下来的问题：
+- API Provider：选 `anthropic`
+- API Key：粘贴你的密钥
+- 默认模型：直接回车用默认值
+
+### 第四步：启动！
+
+```bash
+# 启动服务
+openclaw gateway
+
+# 看到类似输出就成功了：
+# Gateway listening on http://0.0.0.0:18789
+```
+
+### 后台运行（可选）
+
+如果你不想一直开着终端窗口：
+
+```bash
+# macOS/Linux：用 nohup
+nohup openclaw gateway > openclaw.log 2>&1 &
+
+# 或者用 pm2（需要先安装）
+npm install -g pm2
+pm2 start openclaw --name openclaw
+pm2 save
+
+# 查看状态
+pm2 status
+pm2 logs openclaw
+```
+
+---
+
+## 安装后必做：接 Telegram
+
+> 如果你不知道什么是 Telegram，可以跳过这节，以后想接再说。
+
+### 第一步：创建 Telegram Bot
+
+1. 在 Telegram 里搜索 **@BotFather**
+2. 点击 Start
+3. 发送 `/newbot`
+4. 给 Bot 取个名字（比如"我的 AI 助手"）
+5. 给 Bot 取个用户名（必须以 bot 结尾，比如 `my_ai_helper_bot`）
+6. BotFather 会给你一串 Token，**复制下来保存好**
+
+### 第二步：获取你的用户 ID
+
+1. 在 Telegram 里搜索 **@userinfobot**
+2. 点击 Start
+3. 它会回复你的用户 ID（是一串数字），**复制下来**
+
+### 第三步：修改配置
+
+编辑 `~/openclaw/config/config.yaml`：
 
 ```yaml
-# docker-compose.yml
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  api_key: "你的API密钥"
+
+channels:
+  telegram:
+    enabled: true                          # 改成 true
+    bot_token: "123456789:ABCdefGHIjkl"   # BotFather 给的 Token
+    allowed_users:
+      - 123456789                          # userinfobot 给的用户 ID
+```
+
+### 第四步：重启服务
+
+```bash
+# Docker 方式
+docker restart openclaw
+
+# npm 方式
+# Ctrl+C 停止，然后重新运行 openclaw gateway
+```
+
+### 第五步：测试！
+
+去 Telegram 找你的 Bot，点 Start，然后随便发条消息。
+
+> 如果 Bot 不理你，先看日志：`docker logs openclaw`
+
+---
+
+## 常见问题排查
+
+### 问题一：docker run 报 "docker: command not found"
+
+**原因**：Docker 没装或没打开。
+
+**解决**：
+- macOS/Windows：去应用商店下载 Docker Desktop，然后打开它
+- Linux：运行 `sudo apt install docker.io`
+
+---
+
+### 问题二：docker run 报 "permission denied"
+
+**原因**：没有权限运行 Docker。
+
+**解决**：
+```bash
+# 把当前用户加入 docker 组
+sudo usermod -aG docker $USER
+
+# 然后**退出终端，重新打开**
+```
+
+---
+
+### 问题三：访问 127.0.0.1:18789 显示 "连接被拒绝"
+
+**排查步骤**：
+
+1. 检查容器是否在运行：
+```bash
+docker ps
+```
+
+2. 如果没有运行，看错误日志：
+```bash
+docker logs openclaw
+```
+
+3. 常见错误：
+   - "API key is invalid" → 检查 API Key 是否正确
+   - "Connection refused" → API 服务商那边可能挂了
+   - "Port already in use" → 18789 端口被占用了
+
+---
+
+### 问题四：API Key 不工作
+
+**可能原因**：
+
+1. Key 写错了（最常见）
+2. Key 过期了
+3. 账号没钱了（Claude 按量付费）
+4. Key 类型不对（比如用了错误的 API）
+
+**诊断命令**：
+
+```bash
+# 测试 Claude API
+curl -X POST https://api.anthropic.com/v1/messages \
+  -H "x-api-key: 你的KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+如果返回 JSON 而不是报错，说明 Key 是好用的。
+
+---
+
+### 问题五：Bot 不回复消息
+
+**排查顺序**：
+
+1. 检查 Telegram Bot Token 是否正确
+2. 检查用户 ID 是否在 `allowed_users` 里
+3. 检查 API Key 是否有余额
+4. 看日志：
+
+```bash
+docker logs openclaw 2>&1 | grep -i "error"
+```
+
+---
+
+## 进阶：Docker Compose 方式（更专业）
+
+如果你想更方便地管理（开机自启、多个服务一起跑），可以用 Docker Compose。
+
+### 创建 docker-compose.yml
+
+在 `~/openclaw/` 目录下新建文件：
+
+```yaml
 version: '3.8'
 
 services:
@@ -123,601 +421,139 @@ services:
     container_name: openclaw
     restart: unless-stopped
     ports:
-      - "18789:18789"  # WebSocket 控制端口
-      - "8080:8080"    # HTTP API 端口
+      - "18789:18789"
     volumes:
       - ./config:/app/config
       - ./data:/app/data
       - ./plugins:/app/plugins
-      - ./memory:/app/memory
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - LOG_LEVEL=info
-    networks:
-      - openclaw-network
-
-  # 可选：Redis 缓存
-  redis:
-    image: redis:7-alpine
-    container_name: openclaw-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - openclaw-network
-
-volumes:
-  redis-data:
-
-networks:
-  openclaw-network:
-    driver: bridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 ```
 
+### 创建 .env 文件
+
+在同一目录下创建 `.env` 文件（注意前面有个点）：
+
+```
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxx
+```
+
+> **安全提醒**：`.env` 文件包含密钥，记得加到 `.gitignore` 里。
+
+### 启动
+
 ```bash
-# 启动服务
+# 启动所有服务
 docker-compose up -d
+
+# 查看状态
+docker-compose ps
 
 # 查看日志
 docker-compose logs -f openclaw
 
-# 停止服务
+# 停止
 docker-compose down
 ```
 
-### 2.3 GPU 支持
+---
+
+## 进阶：服务器部署（7×24 小时运行）
+
+如果你想把它跑在服务器上，让 Bot 24 小时在线：
+
+### 推荐服务器
+
+| 提供商 | 最低配置 | 价格 | 特点 |
+|--------|----------|------|------|
+| **Hetzner** | 2核4G | €3.5/月 | 欧洲性价比最高 |
+| **Vultr** | 1核1G | $6/月 | 全球节点 |
+| **DigitalOcean** | 1核1G | $6/月 | 稳定好 |
+
+### SSH 连接服务器
 
 ```bash
-# NVIDIA GPU 支持
-docker run -d \
-  --name openclaw-gpu \
-  --gpus all \
-  -p 18789:18789 \
-  -v ~/openclaw:/app \
-  openclaw/openclaw:latest
+ssh root@你的服务器IP
 ```
 
-### 2.4 远程 Docker 部署
+### 在服务器上安装
 
 ```bash
-# 连接到远程 Docker daemon
-export DOCKER_HOST=ssh://user@remote-server
+# 安装 Docker
+curl -fsSL https://get.docker.com | sh
 
-# 或者使用 Docker Context
-docker context create remote --docker "host=ssh://user@remote-server"
-docker context use remote
+# 创建目录
+mkdir -p ~/openclaw/config
 
-# 部署
+# 上传配置文件（在你电脑上运行）
+scp ~/openclaw/config/config.yaml root@服务器IP:~/openclaw/config/
+
+# 启动
 docker run -d \
   --name openclaw \
   -p 18789:18789 \
   -v ~/openclaw/config:/app/config \
+  --restart unless-stopped \
   openclaw/openclaw:latest
 ```
 
----
-
-## 三、源码安装
-
-### 3.1 前提条件
+### 用 PM2 保持后台运行
 
 ```bash
-# macOS
-brew install python@3.11 git
+# 安装 Node.js 和 PM2
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+npm install -g pm2
 
-# Ubuntu/Debian
-sudo apt update
-sudo apt install python3.11 python3.11-venv git
+# 用 PM2 启动
+pm2 start --name openclaw "docker run --rm -p 18789:18789 -v ~/openclaw/config:/app/config openclaw/openclaw:latest"
 
-# Fedora/RHEL
-sudo dnf install python3.11 git
-```
-
-### 3.2 创建虚拟环境
-
-```bash
-# 创建项目目录
-mkdir -p ~/openclaw && cd ~/openclaw
-
-# 创建虚拟环境
-python3.11 -m venv venv
-
-# 激活虚拟环境
-source venv/bin/activate  # Linux/macOS
-# 或
-.\venv\Scripts\activate   # Windows
-
-# 升级 pip
-pip install --upgrade pip
-```
-
-### 3.3 克隆与安装
-
-```bash
-# 克隆仓库
-git clone https://github.com/openclaw-project/openclaw.git
-cd openclaw
-
-# 安装依赖
-pip install -e .
-
-# 安装可选依赖
-pip install -e ".[dev]"        # 开发依赖
-pip install -e ".[telegram]"   # Telegram 支持
-pip install -e ".[discord]"    # Discord 支持
-pip install -e ".[whatsapp]"   # WhatsApp 支持
-pip install -e ".[all]"        # 所有可选依赖
-```
-
-### 3.4 配置与运行
-
-```bash
-# 1. 创建配置目录
-mkdir -p ~/.openclaw
-
-# 2. 复制配置模板
-cp config.example.yaml ~/.openclaw/config.yaml
-
-# 3. 编辑配置
-nano ~/.openclaw/config.yaml
-
-# 4. 运行 OpenClaw
-openclaw run
-
-# 或者开发模式（热重载）
-openclaw run --dev
-```
-
-### 3.5 Windows 特殊说明
-
-```powershell
-# PowerShell 安装步骤
-
-# 1. 安装 Python 3.11+
-winget install Python.Python.3.11
-
-# 2. 克隆仓库
-git clone https://github.com/openclaw-project/openclaw.git
-cd openclaw
-
-# 3. 创建虚拟环境
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-
-# 4. 安装
-pip install -e .
-
-# 5. 运行
-openclaw run
+# 设置开机自启
+pm2 startup
+pm2 save
 ```
 
 ---
 
-## 四、多平台部署
+## 卸载
 
-### 4.1 Linux 系统服务
-
-```bash
-# 创建 systemd 服务文件
-sudo nano /etc/systemd/system/openclaw.service
-
-# 内容：
-[Unit]
-Description=OpenClaw AI Assistant
-After=network.target
-
-[Service]
-Type=simple
-User=openclaw
-Group=openclaw
-WorkingDirectory=/home/openclaw
-Environment="PATH=/home/openclaw/venv/bin"
-EnvironmentFile=/home/openclaw/.env
-ExecStart=/home/openclaw/venv/bin/openclaw run
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
+如果哪天不想用了：
 
 ```bash
-# 创建用户
-sudo useradd -m -s /bin/bash openclaw
-sudo mkdir -p /home/openclaw
-sudo chown openclaw:openclaw /home/openclaw
+# Docker 方式
+docker stop openclaw
+docker rm openclaw
+docker rmi openclaw/openclaw:latest
 
-# 设置权限
-sudo systemctl daemon-reload
-sudo systemctl enable openclaw
-sudo systemctl start openclaw
+# npm 方式
+npm uninstall -g openclaw
 
-# 查看状态
-sudo systemctl status openclaw
-
-# 查看日志
-sudo journalctl -u openclaw -f
-```
-
-### 4.2 macOS LaunchD
-
-```xml
-<!-- ~/Library/LaunchAgents/com.openclaw.plist -->
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "...">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.openclaw</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Users/username/openclaw/venv/bin/openclaw</string>
-        <string>run</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/username/openclaw</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/Users/username/openclaw/venv/bin</string>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/Users/username/openclaw/openclaw.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/username/openclaw/openclaw.error.log</string>
-</dict>
-</plist>
-```
-
-```bash
-# 加载服务
-launchctl load ~/Library/LaunchAgents/com.openclaw.plist
-
-# 卸载服务
-launchctl unload ~/Library/LaunchAgents/com.openclaw.plist
-```
-
-### 4.3 Raspberry Pi 部署
-
-```bash
-# 1. 安装依赖
-sudo apt update
-sudo apt install -y python3.11-venv git libffi-dev libssl-dev
-
-# 2. 创建虚拟环境
-python3.11 -m venv openclaw
-source openclaw/bin/activate
-
-# 3. 安装（使用轻量依赖）
-pip install openclaw[minimal]
-
-# 4. 创建服务
-sudo nano /etc/systemd/system/openclaw.service
-
-# 5. 启动
-sudo systemctl enable openclaw
-sudo systemctl start openclaw
-```
-
-### 4.4 NAS 部署（群晖/威联通）
-
-```bash
-# 群晖 DSM 7.x
-
-# 1. 安装 Python 3.11 套件（从套件中心）
-# 2. 通过 SSH 连接到 NAS
-
-# 3. 创建虚拟环境
-python3.11 -m venv /volume1/openclaw/venv
-
-# 4. 安装
-/volume1/openclaw/venv/bin/pip install openclaw[all]
-
-# 5. 配置（使用 File Station 编辑）
-# 在 /volume1/openclaw/ 创建 config.yaml
-
-# 6. 创建任务计划（控制面板 > 任务计划）
-# 启动命令: /volume1/openclaw/venv/bin/openclaw run
+# 删除配置文件（可选）
+rm -rf ~/openclaw
 ```
 
 ---
 
-## 五、高级配置
+## 下一步
 
-### 5.1 反向代理配置
+安装成功啦！接下来可以学习：
 
-#### Nginx
-
-```nginx
-# /etc/nginx/sites-available/openclaw
-upstream openclaw_backend {
-    server 127.0.0.1:18789;
-}
-
-server {
-    listen 80;
-    server_name openclaw.example.com;
-    
-    # SSL 配置
-    listen 443 ssl http2;
-    ssl_certificate /etc/letsencrypt/live/openclaw.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/openclaw.example.com/privkey.pem;
-    
-    # WebSocket 支持
-    location /ws {
-        proxy_pass http://openclaw_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    
-    # HTTP API
-    location / {
-        proxy_pass http://openclaw_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-#### Caddy
-
-```caddy
-# Caddyfile
-openclaw.example.com {
-    reverse_proxy /ws/* 127.0.0.1:18789
-    reverse_proxy /* 127.0.0.1:18789
-    
-    encode gzip
-    
-    tls {
-        protocols tls1.2 tls1.3
-    }
-}
-```
-
-### 5.2 HTTPS 配置
-
-```bash
-# 使用 Let's Encrypt
-
-# 安装 certbot
-sudo apt install certbot python3-certbot-nginx
-
-# 获取证书
-sudo certbot --nginx -d openclaw.example.com
-
-# 自动续期测试
-sudo certbot renew --dry-run
-```
-
-### 5.3 负载均衡
-
-```yaml
-# docker-compose.yml - 多实例
-version: '3.8'
-
-services:
-  openclaw-1:
-    image: openclaw/openclaw:latest
-    environment:
-      - INSTANCE_ID=1
-    networks:
-      - openclaw-net
-
-  openclaw-2:
-    image: openclaw/openclaw:latest
-    environment:
-      - INSTANCE_ID=2
-    networks:
-      - openclaw-net
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "18789:18789"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - openclaw-1
-      - openclaw-2
-    networks:
-      - openclaw-net
-
-networks:
-  openclaw-net:
-```
-
-### 5.4 监控配置
-
-```yaml
-# docker-compose.yml - 添加监控
-version: '3.8'
-
-services:
-  openclaw:
-    image: openclaw/openclaw:latest
-    ports:
-      - "18789:18789"
-      - "9090:9090"  # Prometheus metrics
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9091:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
-
-volumes:
-  grafana-data:
-```
-
-```yaml
-# prometheus.yml
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: 'openclaw'
-    static_configs:
-      - targets: ['openclaw:9090']
-```
+- [[OpenClaw完整指南]] - 了解所有功能
+- [[OpenClaw多平台集成]] - 接 Discord/微信等
+- [[OpenClaw记忆系统]] - 让 AI 记住更多
+- [[ClawHub技能市场]] - 装各种插件
 
 ---
 
-## 六、故障排除
+**有问题？**
 
-### 6.1 常见问题
+1. 先看日志：`docker logs openclaw`
+2. 搜一下 GitHub Issues
+3. 去 Discord 社区问
 
-> [!faq] Q1: 启动失败，提示 "ModuleNotFoundError"
-> 
-> **解决**：确保已正确安装依赖
-> ```bash
-> pip install -e .
-> ```
-
-> [!faq] Q2: Docker 容器不断重启
-> 
-> **解决**：检查日志和配置
-> ```bash
-> docker logs openclaw
-> docker exec openclaw openclaw doctor
-> ```
-
-> [!faq] Q3: WebSocket 连接失败
-> 
-> **解决**：检查端口和防火墙
-> ```bash
-> # 检查端口
-> netstat -tlnp | grep 18789
-> 
-> # 测试连接
-> curl http://localhost:18789/health
-> ```
-
-> [!faq] Q4: 内存占用过高
-> 
-> **解决**：限制容器资源
-> ```yaml
-> # docker-compose.yml
-> services:
->   openclaw:
->     deploy:
->       resources:
->         limits:
->           memory: 4G
-> ```
-
-### 6.2 诊断命令
-
-```bash
-# OpenClaw 诊断
-openclaw doctor
-
-# 检查配置
-openclaw config validate
-
-# 检查连接
-openclaw check --llm
-openclaw check --channels
-
-# 查看日志
-openclaw logs --level DEBUG
-```
-
-### 6.3 日志管理
-
-```bash
-# Docker 日志
-docker logs -f openclaw --tail 100
-
-# 日志轮转
-# /etc/docker/daemon.json
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
-}
-```
-
----
-
-## 七、安全加固
-
-### 7.1 最佳实践
-
-| 安全措施 | 说明 |
-|----------|------|
-| **环境变量存储密钥** | 避免在配置文件中明文存储 |
-| **最小权限原则** | 容器使用非 root 用户 |
-| **网络隔离** | 使用 Docker 网络 |
-| **定期更新** | 及时更新镜像和依赖 |
-| **备份配置** | 定期备份配置文件 |
-
-### 7.2 安全配置示例
-
-```yaml
-# docker-compose.yml - 安全加固
-version: '3.8'
-
-services:
-  openclaw:
-    image: openclaw/openclaw:latest
-    user: "1000:1000"  # 非 root 用户
-    read_only: true    # 只读文件系统
-    security_opt:
-      - no-new-privileges:true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=100m
-    networks:
-      - internal
-  
-  nginx:
-    image: nginx:alpine
-    networks:
-      - web
-      - internal
-
-networks:
-  web:
-    internal: false
-  internal:
-    internal: true
-```
-
----
-
-## 八、相关文档
-
-- [[OpenClaw完整指南]] - OpenClaw 完整指南
-- [[OpenClaw配置详解]] - 详细配置说明
-- [[OpenClaw多平台集成]] - 多平台集成
-- [[OpenClaw架构解析]] - 技术架构
-- [[OpenClaw高级用法]] - 高级技巧
-
----
-
-*文档更新于 2026年4月18日*
+祝安装顺利！

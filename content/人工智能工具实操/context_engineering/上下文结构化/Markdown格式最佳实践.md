@@ -1,726 +1,1240 @@
 ---
 title: Markdown格式最佳实践
-date: 2026-04-18
+date: 2026-04-24
 tags:
   - markdown
-  - format
+  - formatting
   - context-structure
-  - information-density
-  - noise-filtering
+  - llm-optimization
+  - prompt-engineering
 categories:
   - context-engineering
-  - context-structuring
+  - structured-context
 ---
 
 > [!abstract] 摘要
-> 良好的上下文格式直接影响LLM对信息的理解和提取能力。本文系统讲解Markdown格式在LLM上下文中的应用，包括标题层级、列表结构、表格设计、代码块使用，以及与XML标签、JSON格式的对比，并提供信息密度控制和噪声过滤的实战策略。
+> Markdown是给AI写提示词最常用的格式，但用不好反而会降低效果。这篇为零基础读者讲解：Markdown的基础语法、给LLM用的Markdown最佳实践、如何用Markdown组织复杂上下文、以及常见的Markdown"坑"和解决方案。看完你就能写出结构清晰、AI爱看的Markdown了。
 
-## 关键词速览
+## 先理解一个问题：为什么AI需要Markdown？
 
-| 术语 | 英文 | 说明 |
-|------|------|------|
-| Markdown | Markdown | 轻量级标记语言 |
-| Frontmatter | Frontmatter | 文件开头的元数据 |
-| 信息密度 | Information Density | 单位长度内的信息量 |
-| 噪声过滤 | Noise Filtering | 去除无关信息 |
-| 分层结构 | Hierarchical Structure | 多级嵌套的内容组织 |
-| 代码块 | Code Block | 格式化代码区域 |
-| 表格 | Table | 行列数据组织 |
-| Callout | Callout | 强调块/提示框 |
-| Wikilink | Wikilink | 内部链接语法 |
-| 嵌入 | Embed | 内容嵌入语法 |
+### AI看文字的方式和人不一样
 
-## 一、Markdown格式基础
+```
+人眼阅读：
+小明去学校，他背着书包，书包里有很多书。
+↓ 轻松理解
 
-### 1.1 为什么Markdown适合LLM
-
-Markdown作为一种结构化的纯文本格式，对LLM具有独特优势：
-
-1. **结构明确**：标题、列表、代码块都有明确的语法标记
-2. **层级清晰**：通过缩进和标题级别表示从属关系
-3. **解析简单**：LLM可以准确理解标记含义
-4. **灵活扩展**：支持代码块、表格等复杂结构
-5. **与Wiki兼容**：Obsidian等工具原生支持
-
-### 1.2 基本格式对比
-
-| 格式类型 | 优点 | 缺点 | 适用场景 |
-|---------|------|------|---------|
-| Markdown | 结构清晰、易读 | 表达能力有限 | 大多数场景 |
-| XML标签 | 可自定义、语义明确 | 冗长、可读性差 | 需要精确语义标注 |
-| JSON | 结构化、程序友好 | 嵌套深时不直观 | 结构化数据 |
-| 纯文本 | 最简洁 | 无结构、解析难 | 简单信息 |
-
-## 二、标题层级设计
-
-### 2.1 标准标题层级
-
-```markdown
-# 一级标题 - 文档主题
-## 二级标题 - 主要章节
-### 三级标题 - 子章节
-#### 四级标题 - 详细内容
-##### 五级标题 - 细节
-###### 六级标题 - 最小单元
+AI处理：
+小明去学校，他背着书包，书包里有很多书。
+↓ 机器会"数"token，分析结构，找关键词
 ```
 
-### 2.2 LLM上下文的标题使用原则
+**AI的特点**：
+- 能识别结构标记（如标题、列表）
+- 对格式敏感：同样的内容，格式不同效果不同
+- 擅长处理有明确边界的区块
+
+### Markdown能让AI更聪明
+
+```
+没有Markdown（混乱）：
+今天我们讨论了三个问题第一是预算第二是时间第三是人员请分别说明
+
+有Markdown（清晰）：
+## 会议讨论的问题
+
+1. **预算**：xxx
+2. **时间**：xxx
+3. **人员**：xxx
+```
+
+---
+
+## 一、Markdown基础回顾
+
+### 常用语法一览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Markdown基础语法速查                                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  # 标题        ## 二级标题        ### 三级标题               │
+│  **粗体**      *斜体*            ~~删除线~~                │
+│  `行内代码`    ```代码块```                                 │
+│  - 无序列表    1. 有序列表    - [ ] 待办事项              │
+│  > 引用        | 表格 |                                      │
+│  --- 分隔线    [链接](url)   ![图片](url)                  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 基础代码实现
 
 ```python
-TITLE_GUIDELINES = """
-标题使用规范：
-1. H1只用于文档主标题，每个文档限一个
-2. H2用于主要功能模块或章节，不超过7个（符合认知限制）
-3. H3用于子功能或具体步骤
-4. 避免超过4级标题，过深的嵌套不利于LLM理解
-5. 标题应简洁明了，包含关键词
-6. 相关内容应有相邻的标题
+class MarkdownBasic:
+    """Markdown基础生成"""
+
+    @staticmethod
+    def headings():
+        """标题"""
+        return """# 一级标题（文章标题）
+## 二级标题（大章节）
+### 三级标题（小节）
+#### 四级标题（子节）
 """
-```
 
-### 2.3 实战：文档结构模板
+    @staticmethod
+    def emphasis():
+        """强调"""
+        return """**这是粗体** - 用于强调重要内容
+*这是斜体* - 用于轻微强调
+***粗斜体*** - 用于特别强调
+~~删除线~~ - 用于表示过时内容
+"""
 
-```markdown
-# [主标题] - 简洁描述核心内容
+    @staticmethod
+    def inline_code():
+        """行内代码"""
+        return """Python中用 `print()` 输出
+函数调用 `process_data(data)`
+变量 `max_tokens = 8000`
+"""
 
-> [!abstract]+ 摘要
-> 一句话概括文档目的和核心内容
-
-## 关键词速览
-| 术语 | 说明 |
-|------|------|
-| 关键概念1 | 定义 |
-| 关键概念2 | 定义 |
-
-## 一、[第一章主题]
-### 1.1 [子主题]
-#### 1.1.1 [具体点]
-
-## 二、[第二章主题]
-
-## 三、[第三章主题]
-
-## 总结
-```
-
-## 三、列表结构
-
-### 3.1 有序列表 vs 无序列表
-
-**适用场景对比**：
-
-| 列表类型 | 适用场景 | 示例 |
-|---------|---------|------|
-| 有序列表 | 步骤流程、排名、需要强调顺序 | 操作步骤、排名榜单 |
-| 无序列表 | 并列项、分类列举 | 功能列表、特点说明 |
-
-### 3.2 嵌套列表
-
-```markdown
-# 正确示例 - 清晰的层级关系
-1. 第一步操作
-   - 子步骤1.1
-   - 子步骤1.2
-     - 细项1.2.1
-     - 细项1.2.2
-2. 第二步操作
-   - 相关说明
-
-# 错误示例 - 混乱的嵌套
-1. 第一步
-  - 错误：缩进不一致
-    * 混用标记
-```
-
-### 3.3 任务列表（Checkbox）
-
-```markdown
-- [x] 已完成的任务 ✓
-- [ ] 待完成的任务
-- [ ] 另一个待办
-  - [x] 子任务已完成
-  - [ ] 子任务待完成
-```
-
-**LLM应用**：
-
-```python
-def generate_task_list_prompt(tasks: List[Dict]) -> str:
-    """生成任务列表提示"""
-    lines = ["## 待处理任务\n"]
-    
-    for i, task in enumerate(tasks, 1):
-        priority = "🔴高" if task.get('priority') == 'high' else "🟡中" if task.get('priority') == 'medium' else "🟢低"
-        lines.append(f"- [ ] **任务{i}** {priority}")
-        lines.append(f"  - 描述: {task['description']}")
-        if task.get('deadline'):
-            lines.append(f"  - 截止: {task['deadline']}")
-        lines.append(f"  - 状态: {task.get('status', '未开始')}")
-    
-    return "\n".join(lines)
-```
-
-## 四、表格设计
-
-### 4.1 基础表格语法
-
-```markdown
-| 列1 | 列2 | 列3 |
-|-----|-----|-----|
-| A1  | B1  | C1  |
-| A2  | B2  | C2  |
-```
-
-### 4.2 复杂表格设计
-
-```markdown
-| 功能 | 支持情况 | 说明 | 优先级 |
-|:-----|:-------:|:----:|:------:|
-| 左对齐 | ✓ | 常用 | P1 |
-| 居中 | ✓ | 标题 | P2 |
-| 右对齐 | ✗ | 不支持 | P3 |
-
-# 对齐语法
-# :--- 左对齐
-# :--: 居中
-# ---: 右对齐
-```
-
-### 4.3 表格与LLM的交互
-
-```python
-def format_table_for_llm(
-    headers: List[str],
-    rows: List[List[str]],
-    caption: str = None
-) -> str:
-    """格式化为LLM友好的表格"""
-    lines = []
-    
-    if caption:
-        lines.append(f"**{caption}**\n")
-    
-    # 表头
-    header_line = "| " + " | ".join(headers) + " |"
-    separator = "| " + " | ".join(["---"] * len(headers)) + " |"
-    
-    lines.append(header_line)
-    lines.append(separator)
-    
-    # 数据行
-    for row in rows:
-        row_line = "| " + " | ".join(str(cell) for cell in row) + " |"
-        lines.append(row_line)
-    
-    return "\n".join(lines)
-
-# 示例
-table = format_table_for_llm(
-    headers=["模型", "上下文", "特点"],
-    rows=[
-        ["GPT-4o", "128K", "多模态强"],
-        ["Claude 3.5", "200K", "长文本优"],
-        ["Gemini 1.5", "1M", "超长上下文"]
-    ],
-    caption="主流模型对比"
-)
-```
-
-## 五、代码块使用
-
-### 5.1 基础代码块
-
-````markdown
-```python
+    @staticmethod
+    def code_block():
+        """代码块"""
+        return """```python
 def hello():
     print("Hello, World!")
 ```
-````
+"""
 
-### 5.2 带行号的代码块
+    @staticmethod
+    def lists():
+        """列表"""
+        return """无序列表：
+- 第一项
+- 第二项
+  - 嵌套的子项
+  - 另一个子项
+- 第三项
 
-```markdown
-| 行号 | 代码 | 说明 |
-|:----:|------|------|
-| 1 | ```python | 开始代码块 |
-| 2 | def example(): | 函数定义 |
-| 3 | return True | 返回值 |
-| 4 | ``` | 结束代码块 |
+有序列表：
+1. 步骤一
+2. 步骤二
+3. 步骤三
+
+待办事项：
+- [x] 已完成的任务
+- [ ] 待办的任务
+- [ ] 另一个待办
+"""
+
+    @staticmethod
+    def blockquote():
+        """引用"""
+        return """> 这是一段引用
+> 可以引用名人名言
+> 或者重要文档内容
+>
+> 引用可以多行
+"""
+
+    @staticmethod
+    def table():
+        """表格"""
+        return """| 姓名 | 年龄 | 职业 |
+|------|------|------|
+| 小明 | 25 | 工程师 |
+| 小红 | 23 | 设计师 |
+"""
+
+    @staticmethod
+    def horizontal_rule():
+        """分隔线"""
+        return """
+---
+或者
+***
+或者
+___
+"""
 ```
 
-### 5.3 代码块与注释结合
+---
+
+## 二、给LLM用的Markdown最佳实践
+
+### 原则1：结构要清晰
+
+**❌ 错误示范：混乱的结构**
 
 ```markdown
+小明今天去了商店他买了苹果香蕉和橘子然后回家了
+```
+
+**✅ 正确示范：清晰的结构**
+
+```markdown
+# 小明的一天
+
+## 早上活动
+- 起床
+- 吃早餐
+- 出门
+
+## 购物行程
+去了**社区商店**，买了以下物品：
+1. 苹果（3个）
+2. 香蕉（5根）
+3. 橘子（2个）
+
+## 回家
+购物完成后，小明直接回家了。
+```
+
+### 原则2：用标记突出关键信息
+
 ```python
-def process_data(data: List[Dict]) -> Dict:
-    """
-    处理数据的主函数
-    
-    Args:
-        data: 原始数据列表
-        Returns:
-        处理后的结果字典
-    
-    处理流程:
-    1. 数据清洗
-    2. 格式转换
-    3. 统计分析
-    """
-    
-    # 步骤1: 数据清洗
-    cleaned = [item for item in data if item.get('valid')]
-    
-    # 步骤2: 格式转换
-    transformed = [{'id': i, 'value': item['value']} 
-                   for i, item in enumerate(cleaned)]
-    
-    # 步骤3: 统计分析
-    result = {
-        'count': len(transformed),
-        'total': sum(item['value'] for item in transformed)
-    }
-    
+class KeyInformationMarker:
+    """关键信息标记"""
+
+    @staticmethod
+    def mark_important():
+        """标记重要信息"""
+        return """## 关键数据
+
+**年增长率**：30%
+**核心指标**：DAU > 1000万
+**截止日期**：2024-12-31
+
+> [!important]
+> 这些数据是决策的重要依据！
+"""
+
+    @staticmethod
+    def mark_action():
+        """标记需要执行的操作"""
+        return """## 待执行任务
+
+- [ ] 检查服务器状态
+- [ ] 更新数据库
+- [ ] 发送通知邮件
+
+> [!action]
+> ⚠️ 请在完成任务后更新状态
+"""
+
+    @staticmethod
+    def mark_warning():
+        """标记警告信息"""
+        return """> [!warning]
+> 性能问题：当前响应时间 > 2秒，需要优化
+"""
+
+    @staticmethod
+    def mark_tip():
+        """标记提示信息"""
+        return """> [!tip]
+> 💡 提示：使用索引可以提升查询速度10倍
+"""
+```
+
+### 原则3：分区块组织内容
+
+```python
+class ContentBlockOrganizer:
+    """内容区块组织器"""
+
+    @staticmethod
+    def role_definition():
+        """角色定义区块"""
+        return """---
+角色：你是一个资深Python后端工程师
+
+背景：
+- 10年开发经验
+- 擅长Django、FastAPI
+- 熟悉微服务架构
+
+目标：
+- 提供高质量代码
+- 解释技术细节
+- 给出最佳实践
+
+约束：
+- 代码必须可运行
+- 必须有注释
+- 必须考虑性能
+---
+"""
+
+    @staticmethod
+    def context_block():
+        """上下文区块"""
+        return """---
+[上下文信息]
+
+用户信息：
+- 用户名：小明
+- 会员等级：VIP
+- 偏好：简洁风格
+
+对话历史：
+- 之前询问了登录功能
+- 需要实现找回密码
+
+当前任务：
+实现邮箱找回密码功能
+---
+"""
+
+    @staticmethod
+    def instruction_block():
+        """指令区块"""
+        return """---
+[指令]
+
+请完成以下任务：
+1. 创建密码重置API
+2. 发送重置邮件
+3. 实现密码更新逻辑
+
+输出要求：
+- 提供完整代码
+- 包含错误处理
+- 添加单元测试
+
+格式要求：
+- 使用FastAPI
+- 返回JSON格式
+- 添加文档字符串
+---
+"""
+
+    @staticmethod
+    def example_block():
+        """示例区块"""
+        return """---
+[示例]
+
+输入：
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+期望输出：
+```json
+{
+  "success": true,
+  "message": "重置邮件已发送"
+}
+```
+
+错误示例：
+❌ 返回明文密码
+❌ 不验证邮箱存在性
+✓ 返回统一格式的错误信息
+---
+"""
+```
+
+### 原则4：代码块要完整
+
+**❌ 错误：残缺代码**
+
+```markdown
+def process(data):
+    # 省略...
     return result
 ```
-```
 
-## 六、Callout（提示块）
-
-### 6.1 Callout类型
+**✅ 正确：完整可运行的代码**
 
 ```markdown
-> [!note] 笔记提示
-> 一般性信息说明
-
-> [!tip] 技巧提示
-> 有用的建议或快捷方式
-
-> [!warning] 警告
-> 需要注意的重要信息
-
-> [!danger] 危险
-> 可能会导致问题的警告
-
-> [!example] 示例
-> 具体的使用示例
-
-> [!quote] 引用
-> 引用他人的话或外部来源
-
-> [!abstract] 摘要
-> 文档或章节的摘要
-
-> [!info] 信息
-> 补充信息
-```
-
-### 6.2 Callout嵌套
-
-```markdown
-> [!note]+ 可折叠的笔记
-> 这是默认展开的笔记内容
->
-> > [!warning]- 嵌套的警告
-> > 这是一个嵌套的可折叠警告
-> > 展开时显示，折叠时隐藏
-```
-
-### 6.3 Callout在LLM提示中的应用
-
 ```python
-SYSTEM_PROMPT_TEMPLATE = """
-你是专业的技术文档助手。
+from typing import Dict, Any
+from dataclasses import dataclass
 
-> [!important]+ 核心职责
-> 1. 准确理解用户问题
-> 2. 提供结构清晰的回答
-> 3. 在回答中引用相关文档
+@dataclass
+class ProcessResult:
+    """处理结果"""
+    success: bool
+    data: Any
+    error: str = ""
 
-> [!warning]- 回答限制
-> - 只基于提供的上下文回答
-> - 不编造未提供的信息
-> - 不确定时明确说明
-
-> [!example]:: 良好回答示例
-> **问题**: 如何使用Python的列表推导式？
->
-> **回答**:
-> 列表推导式是Python的简洁语法...
-"""
-
-def build_structured_prompt(context: str, query: str) -> str:
-    return f"""
-{ SYSTEM_PROMPT_TEMPLATE }
-
-## 提供的上下文
-> [!info]- 背景信息
-{context}
-
-## 用户问题
-{query}
-
-## 回答要求
-1. 先确认是否可以从上下文中找到答案
-2. 如果能找到，给出具体引用
-3. 如果不能，明确说明
-"""
-```
-
-## 七、分层缩进设计
-
-### 7.1 缩进层级规范
-
-```python
-INDENTATION_RULES = """
-缩进层级与含义：
-- 0级：无缩进，顶级内容
-- 2空格：一级子内容
-- 4空格：二级子内容
-- 6空格：三级子内容
-
-示例结构：
-顶级内容（0缩进）
-  一级子内容（2空格）
-    二级子内容（4空格）
-      三级子内容（6空格）
-"""
-```
-
-### 7.2 缩进在列表中的应用
-
-```markdown
-## 功能模块
-
-模块A
-  - 功能A1
-    - 具体操作步骤：
-      1. 打开配置
-      2. 修改参数
-      3. 保存设置
-  - 功能A2
-
-模块B
-  - 功能B1
-```
-
-### 7.3 缩进在表格中的替代
-
-```markdown
-# 用分层列表替代复杂表格
-## 电商系统功能
-
-### 商品管理
-  - 商品列表
-    - 添加商品
-    - 编辑商品
-    - 删除商品
-  - 库存管理
-    - 入库操作
-    - 出库操作
-
-### 订单管理
-  - 订单列表
-    - 查看详情
-    - 取消订单
-  - 支付处理
-    - 在线支付
-    - 货到付款
-```
-
-## 八、信息密度控制
-
-### 8.1 密度评估方法
-
-```python
-def calculate_information_density(text: str) -> float:
+def process(data: Dict[str, Any]) -> ProcessResult:
     """
-    计算信息密度
-    返回：信息密度分数 (0-1)
+    处理数据
+
+    Args:
+        data: 输入数据字典
+
+    Returns:
+        ProcessResult: 处理结果
+
+    Raises:
+        ValueError: 数据格式错误
     """
-    # 过滤停用词和常见词
-    content_words = extract_meaningful_words(text)
-    
-    # 计算有效信息比例
-    total_words = len(text.split())
-    content_word_ratio = len(content_words) / total_words if total_words > 0 else 0
-    
-    # 考虑结构化程度
-    structure_markers = count_structure_markers(text)
-    structure_score = min(structure_markers / 10, 1.0)
-    
-    # 综合评分
-    density = 0.6 * content_word_ratio + 0.4 * structure_score
-    
-    return density
+    try:
+        # 验证数据
+        if not data:
+            raise ValueError("数据不能为空")
 
-def extract_meaningful_words(text: str) -> List[str]:
-    """提取有意义的词汇"""
-    stopwords = {'的', '了', '是', '在', '和', '与', '等', '以及', '这', '那'}
-    words = text.split()
-    return [w for w in words if w not in stopwords and len(w) > 1]
+        # 处理逻辑
+        result = data.get("value", 0) * 2
+
+        return ProcessResult(
+            success=True,
+            data=result
+        )
+    except ValueError as e:
+        return ProcessResult(
+            success=False,
+            data=None,
+            error=str(e)
+        )
+
+# 测试
+if __name__ == "__main__":
+    test_data = {"value": 10}
+    result = process(test_data)
+    print(f"处理结果：{result}")
+```
 ```
 
-### 8.2 密度优化策略
+---
 
-| 策略 | 适用场景 | 实现方法 |
-|------|---------|---------|
-| 删除冗余 | 重复描述 | 去重压缩 |
-| 提取核心 | 长段落 | 摘要提取 |
-| 结构化 | 散乱信息 | 列表/表格化 |
-| 编码 | 重复模式 | 使用占位符 |
-| 分层 | 复杂内容 | 展开/折叠 |
+## 三、复杂上下文的Markdown组织
 
-### 8.3 自动密度优化
+### 场景1：多文档汇总
 
 ```python
-class ContextDensityOptimizer:
-    """上下文密度优化器"""
-    
-    def __init__(self, llm_client):
-        self.llm = llm_client
-    
-    def optimize(
-        self,
-        text: str,
-        target_density: float = 0.7,
-        mode: str = "balance"
-    ) -> str:
+class MultiDocumentOrganizer:
+    """多文档组织器"""
+
+    @staticmethod
+    def merge_documents(docs: list) -> str:
         """
-        优化上下文密度
-        
-        mode: 'compress' (压缩), 'expand' (扩展), 'balance' (平衡)
+        合并多个文档
+
+        Args:
+            docs: 文档列表，每个元素是 {'title': str, 'content': str, 'source': str}
         """
-        current_density = calculate_information_density(text)
-        
-        if mode == "compress" or current_density < target_density:
-            return self._compress_to_density(text, target_density)
-        elif mode == "expand" or current_density > target_density * 1.2:
-            return self._expand_with_context(text)
-        else:
-            return text
-    
-    def _compress_to_density(self, text: str, target: float) -> str:
-        """压缩到目标密度"""
-        prompt = f"""请压缩以下文本，在保持关键信息的同时提高信息密度。
+        output = ["# 文档汇总\n"]
 
-要求：
-1. 删除重复和无意义的表述
-2. 使用更简洁的表达
-3. 保留所有关键数据和事实
-4. 保持原有的结构层次
+        for i, doc in enumerate(docs, 1):
+            output.append(f"## 文档{i}：{doc['title']}")
+            output.append(f"**来源**：{doc['source']}")
+            output.append("")
+            output.append(doc['content'])
+            output.append("\n---\n")
 
-原文：
-{text}
+        return "\n".join(output)
 
-压缩后的版本（保持Markdown格式）："""
-        
-        return self.llm.generate(prompt)
-    
-    def _expand_with_context(self, text: str) -> str:
-        """在保持密度的同时补充必要上下文"""
-        prompt = f"""以下文本信息密度过高，请适当补充必要上下文使其更易理解。
+    @staticmethod
+    def structured_merge(docs: list) -> str:
+        """结构化合并"""
+        output = ["# 资料汇总\n"]
 
-原文：
-{text}
+        # 按主题分组
+        by_theme = {}
+        for doc in docs:
+            theme = doc.get('theme', '其他')
+            if theme not in by_theme:
+                by_theme[theme] = []
+            by_theme[theme].append(doc)
 
-补充后的版本："""
-        
-        return self.llm.generate(prompt)
-```
+        # 输出
+        for theme, theme_docs in by_theme.items():
+            output.append(f"## {theme}")
+            output.append("")
 
-## 九、噪声过滤
+            for doc in theme_docs:
+                output.append(f"### {doc['title']}")
+                output.append(f"来源：{doc['source']} | 日期：{doc.get('date', '未知')}")
+                output.append("")
+                output.append(doc['content'])
+                output.append("")
 
-### 9.1 常见噪声类型
+        return "\n".join(output)
 
-| 噪声类型 | 示例 | 过滤方法 |
-|---------|------|---------|
-| 格式噪声 | 多余空行、重复标记 | 清理脚本 |
-| 内容噪声 | 模板文本、无关广告 | 内容识别 |
-| 语义噪声 | 重复观点、过时信息 | 语义去重 |
-| 标记噪声 | 失效链接、损坏引用 | 链接检查 |
 
-### 9.2 噪声过滤实现
-
-```python
-import re
-
-class NoiseFilter:
-    """上下文噪声过滤器"""
-    
-    def __init__(self):
-        self.patterns = {
-            'extra_whitespace': re.compile(r'\n{3,}'),
-            'trailing_spaces': re.compile(r' +$', re.MULTILINE),
-            'empty_brackets': re.compile(r'\[\s*\]'),
-            'placeholder': re.compile(r'\[TODO\]|\[TBD\]|\[PLACEHOLDER\]'),
+# 使用示例
+def demo_multi_document():
+    docs = [
+        {
+            'title': '产品需求文档',
+            'content': '产品需求详细内容...',
+            'source': 'PRD_v2.pdf',
+            'theme': '产品'
+        },
+        {
+            'title': '技术设计文档',
+            'content': '技术架构设计...',
+            'source': 'design_doc.md',
+            'theme': '技术'
+        },
+        {
+            'title': '用户研究报告',
+            'content': '用户调研结果...',
+            'source': 'research_2024.pdf',
+            'theme': '产品'
         }
-    
-    def filter_format_noise(self, text: str) -> str:
-        """过滤格式噪声"""
-        result = text
-        
-        for name, pattern in self.patterns.items():
-            result = pattern.sub('\n\n' if name == 'extra_whitespace' else '', result)
-        
-        return result.strip()
-    
-    def filter_content_noise(self, text: str) -> str:
-        """过滤内容噪声（需要LLM辅助）"""
-        prompt = f"""请从以下文本中删除与核心信息无关的噪声内容。
+    ]
 
-噪声包括：
-- 重复的表述
-- 与主题无关的插入内容
-- 过时的信息
-- 模板化的客套话
-
-原文：
-{text}
-
-清理后的版本（保持Markdown格式）："""
-        
-        return self.llm.generate(prompt)
-    
-    def filter_noise(self, text: str, level: str = "basic") -> str:
-        """
-        综合噪声过滤
-        
-        level: 'basic' (仅格式), 'medium' (格式+内容), 'aggressive' (激进过滤)
-        """
-        result = self.filter_format_noise(text)
-        
-        if level in ['medium', 'aggressive']:
-            result = self.filter_content_noise(result)
-        
-        return result
+    organizer = MultiDocumentOrganizer()
+    merged = organizer.structured_merge(docs)
+    print(merged)
 ```
 
-### 9.3 增量式过滤
+### 场景2：对话历史格式化
 
 ```python
-class IncrementalNoiseFilter:
-    """增量式噪声过滤器"""
-    
-    def __init__(self, noise_threshold: float = 0.3):
-        self.noise_threshold = noise_threshold
-        self.noise_patterns = []
-        self.learned_patterns = []
-    
-    def add_noise_pattern(self, pattern: str, description: str):
-        """添加已知噪声模式"""
-        self.noise_patterns.append({
-            'pattern': re.compile(pattern),
-            'description': description
-        })
-    
-    def learn_pattern(self, example: str, is_noise: bool):
-        """从示例中学习噪声模式"""
-        if is_noise:
-            self.learned_patterns.append(example)
-    
-    def filter_incremental(self, text: str) -> tuple:
-        """增量过滤，返回过滤后的文本和被过滤的内容"""
-        filtered_parts = []
-        removed_parts = []
-        
-        current = text
-        for noise in self.noise_patterns:
-            current, removed = noise['pattern'].subn(
-                '', current
-            )
-            if removed > 0:
-                removed_parts.append({
-                    'type': noise['description'],
-                    'count': removed
-                })
-        
-        return current, removed_parts
+class ConversationFormatter:
+    """对话格式化器"""
+
+    @staticmethod
+    def format_conversation(messages: list, max_turns: int = 10) -> str:
+        """
+        格式化对话历史
+
+        Args:
+            messages: 消息列表
+            max_turns: 最多保留的对话轮数
+        """
+        output = ["## 对话历史\n"]
+
+        # 保留最近的消息
+        recent = messages[-max_turns:] if len(messages) > max_turns else messages
+
+        for i, msg in enumerate(recent, 1):
+            role_emoji = {
+                'user': '👤',
+                'assistant': '🤖',
+                'system': '⚙️'
+            }.get(msg['role'], '💬')
+
+            output.append(f"### {role_emoji} {msg['role'].upper()} - 轮次{i}")
+
+            # 如果是代码内容，用代码块
+            if '```' in msg['content']:
+                output.append(msg['content'])
+            else:
+                output.append(msg['content'])
+
+            output.append("")
+
+        return "\n".join(output)
+
+    @staticmethod
+    def format_with_summary(messages: list) -> str:
+        """带摘要的对话格式化"""
+        if len(messages) <= 10:
+            return ConversationFormatter.format_conversation(messages)
+
+        output = ["## 对话摘要\n"]
+
+        # 历史摘要
+        output.append("### 早期对话摘要")
+        output.append("[由LLM生成的早期对话摘要]")
+        output.append("")
+
+        # 最近的对话
+        output.append("### 最近对话")
+        output.append(ConversationFormatter.format_conversation(
+            messages[-5:],  # 只保留最近5轮
+            max_turns=5
+        ))
+
+        return "\n".join(output)
 ```
 
-## 十、综合实战模板
-
-### 10.1 完整文档模板
-
-```markdown
----
-title: [文档标题]
-date: [日期]
-tags:
-  - [标签1]
-  - [标签2]
-categories:
-  - [分类1]
-  - [分类2]
----
-
-> [!abstract]+ 摘要
-> [一句话概括文档核心内容]
-
-## 关键词速览
-| 术语 | 说明 |
-|------|------|
-| [关键概念1] | [定义] |
-| [关键概念2] | [定义] |
-
----
-
-## 一、[第一章主题]
-
-### 1.1 [子主题]
-[内容...]
-
-> [!tip] 实践技巧
-> [相关提示内容]
-
-> [!warning] 注意事项
-> [警告内容]
-
-### 1.2 [子主题]
+### 场景3：数据表格化
 
 ```python
-# 代码示例
-def example():
-    return "Hello"
+class TableFormatter:
+    """表格格式化器"""
+
+    @staticmethod
+    def create_comparison_table(items: list, headers: list) -> str:
+        """创建对比表格"""
+        lines = []
+
+        # 表头
+        header_line = "| " + " | ".join(headers) + " |"
+        separator = "|" + "|".join(["---" for _ in headers]) + "|"
+
+        lines.append(header_line)
+        lines.append(separator)
+
+        # 数据行
+        for item in items:
+            row = "| " + " | ".join(str(item.get(h, "")) for h in headers) + " |"
+            lines.append(row)
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def create_feature_matrix(features: dict) -> str:
+        """创建特性矩阵"""
+        lines = ["## 特性对比\n"]
+
+        # 表头
+        headers = ["特性", "实现状态", "优先级", "备注"]
+        lines.append(TableFormatter.create_comparison_table([], headers))
+
+        # 数据
+        items = []
+        for name, info in features.items():
+            items.append({
+                "特性": name,
+                "实现状态": "✅ 已完成" if info.get('done') else "⏳ 进行中",
+                "优先级": info.get('priority', '中'),
+                "备注": info.get('note', '-')
+            })
+
+        if items:
+            lines.append(TableFormatter.create_comparison_table(items, headers))
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def create_progress_table(tasks: list) -> str:
+        """创建进度表格"""
+        lines = ["## 任务进度\n"]
+
+        headers = ["任务", "负责人", "状态", "完成度"]
+        items = []
+
+        for task in tasks:
+            status_map = {
+                'todo': '📋 待开始',
+                'in_progress': '🔄 进行中',
+                'review': '👀 审核中',
+                'done': '✅ 已完成',
+                'blocked': '🚫 阻塞'
+            }
+
+            items.append({
+                "任务": task['name'],
+                "负责人": task.get('owner', '-'),
+                "状态": status_map.get(task.get('status', 'todo'), '📋 未知'),
+                "完成度": f"{task.get('progress', 0)}%"
+            })
+
+        if items:
+            lines.append(TableFormatter.create_comparison_table(items, headers))
+
+        return "\n".join(lines)
 ```
 
-## 二、[第二章主题]
+---
 
-| 参数 | 类型 | 说明 | 必填 |
-|:-----|:----:|------|:----:|
-| param1 | str | 参数1 | ✓ |
-| param2 | int | 参数2 | ✗ |
+## 四、Markdown在Prompt中的高级用法
 
-## 三、[第三章主题]
+### 技巧1：Chain-of-Thought分步
 
-> [!example]+ 完整示例
-> ```python
-> # 完整使用示例
-> result = process(param1="value")
-> print(result)
-> ```
+```python
+class CoTPromptFormatter:
+    """思维链提示格式化"""
 
-## 总结
+    @staticmethod
+    def step_by_step() -> str:
+        """分步思考模板"""
+        return """## 问题分析
 
-> [!note]- 要点回顾
-> 1. [要点1]
-> 2. [要点2]
-> 3. [要点3]
+请按以下步骤分析并回答问题：
+
+### 步骤1：理解问题
+- 识别问题的核心是什么
+- 确定需要的信息
+
+### 步骤2：分析信息
+- 整理已知条件
+- 找出关键数据
+
+### 步骤3：推理过程
+请展示你的推理步骤：
+
+```
+步骤3.1：...
+步骤3.2：...
+步骤3.3：...
+```
+
+### 步骤4：得出结论
+基于以上分析，结论是：...
+
+### 步骤5：验证
+- 检查逻辑是否正确
+- 确认结论是否合理
+
+---
+问题：{question}
+
+你的分析：
+"""
+
+    @staticmethod
+    def with_examples() -> str:
+        """带示例的思考模板"""
+        return """## 任务：{task_name}
+
+### 示例
+
+**示例输入**：{example_input}
+
+**推理过程**：
+```
+1. 识别输入类型：...
+2. 应用规则：...
+3. 生成输出：...
+```
+
+**示例输出**：
+```json
+{expected_output}
+```
+
+### 实际任务
+
+**输入**：{actual_input}
+
+请按照示例的格式完成推理并输出结果：
+"""
+```
+
+### 技巧2：角色扮演模板
+
+```python
+class RolePlayFormatter:
+    """角色扮演格式化器"""
+
+    @staticmethod
+    def define_role(
+        name: str,
+        background: str,
+        expertise: list,
+        constraints: list
+    ) -> str:
+        """定义角色"""
+        output = [f"## 角色定义：{name}\n"]
+
+        output.append("### 背景")
+        output.append(background)
+        output.append("")
+
+        output.append("### 专业领域")
+        for exp in expertise:
+            output.append(f"- {exp}")
+        output.append("")
+
+        output.append("### 行为约束")
+        for constraint in constraints:
+            output.append(f"- {constraint}")
+        output.append("")
+
+        output.append("---\n")
+        output.append("现在，请以这个角色的身份回答问题。")
+
+        return "\n".join(output)
+
+    @staticmethod
+    def multi_agent() -> str:
+        """多智能体模板"""
+        return """# 团队讨论
+
+## 参与者
+
+### 🎯 产品经理
+- 关注：用户需求、产品价值、商业目标
+- 发言风格：简洁、直接、关注ROI
+
+### 💻 技术专家
+- 关注：可行性、技术架构、性能
+- 发言风格：详细、专业、数据驱动
+
+### 📊 数据分析师
+- 关注：数据指标、趋势分析、洞察
+- 发言风格：客观、谨慎、引用数据
+
+### 🎨 设计师
+- 关注：用户体验、界面美观、一致性
+- 发言风格：创意、以用户为中心
+
+---
+## 议题
+
+{topic}
+
+---
+## 讨论规则
+
+1. 每位参与者先陈述自己的观点
+2. 然后回应其他人的观点
+3. 最后达成共识或保留分歧
+
+开始讨论：
+"""
+```
+
+### 技巧3：输出格式强制
+
+```python
+class OutputFormatFormatter:
+    """输出格式格式化器"""
+
+    @staticmethod
+    def json_format(schema: dict) -> str:
+        """JSON格式模板"""
+        return f"""## 输出要求
+
+请以JSON格式输出，结构如下：
+
+```json
+{schema}
+```
+
+### 示例
+
+```json
+{json.dumps({
+    "status": "success",
+    "data": {{"key": "value"}},
+    "message": "操作完成"
+}, ensure_ascii=False, indent=2)}
+```
+
+### 注意事项
+- 所有字段必须存在
+- 字段类型必须正确
+- 不要添加额外字段
+
+---
+你的回答（JSON格式）：
+"""
+
+    @staticmethod
+    def structured_report() -> str:
+        """结构化报告模板"""
+        return """## 分析报告
+
+### 1. 执行摘要
+（用2-3句话概括核心发现）
+
+### 2. 详细分析
+
+#### 2.1 关键发现
+- 发现1：[描述] | 影响：[评估]
+- 发现2：[描述] | 影响：[评估]
+
+#### 2.2 数据支持
+| 指标 | 数值 | 趋势 |
+|------|------|------|
+| ... | ... | ... |
+
+### 3. 结论
+（基于分析得出的结论）
+
+### 4. 建议
+基于以上分析，建议：
+1. ...
+2. ...
+3. ...
+
+### 5. 风险提示
+- 风险1：[描述] | 概率：[评估] | 影响：[评估]
+- 风险2：[描述] | 概率：[评估] | 影响：[评估]
+
+---
+"""
+```
+
+---
+
+## 五、常见"坑"与解决方案
+
+### 坑1：Markdown渲染不一致
+
+```python
+class MarkdownCompatibility:
+    """Markdown兼容性处理"""
+
+    # 不同平台支持的语法
+    SUPPORTED_FEATURES = {
+        'chatgpt': ['headings', 'bold', 'italic', 'code', 'lists', 'blockquote'],
+        'claude': ['headings', 'bold', 'italic', 'code', 'lists', 'blockquote', 'callouts'],
+        'gemini': ['headings', 'bold', 'italic', 'code', 'lists'],
+        'kimi': ['headings', 'bold', 'italic', 'code', 'lists', 'blockquote']
+    }
+
+    @staticmethod
+    def make_compatible(text: str, platform: str) -> str:
+        """转换为平台兼容的Markdown"""
+        supported = MarkdownCompatibility.SUPPORTED_FEATURES.get(
+            platform,
+            MarkdownCompatibility.SUPPORTED_FEATURES['chatgpt']
+        )
+
+        # 移除不支持的特性
+        if 'callouts' not in supported:
+            # 移除callout语法
+            text = MarkdownCompatibility._remove_callouts(text)
+
+        if 'blockquote' not in supported:
+            # 替换blockquote为普通文本
+            text = MarkdownCompatibility._replace_blockquote(text)
+
+        return text
+
+    @staticmethod
+    def _remove_callouts(text: str) -> str:
+        """移除callout"""
+        import re
+        # 移除 > [!type] 这样的标记
+        return re.sub(r'\[![\w]+\]', '', text)
+
+    @staticmethod
+    def _replace_blockquote(text: str) -> str:
+        """替换blockquote"""
+        lines = text.split('\n')
+        result = []
+
+        for line in lines:
+            if line.startswith('>'):
+                line = '【提示】' + line.lstrip('>').strip()
+            result.append(line)
+
+        return '\n'.join(result)
+```
+
+### 坑2：表格太复杂AI解析错
+
+```python
+class TableSimplifier:
+    """表格简化器"""
+
+    @staticmethod
+    def simplify_table(table_text: str) -> str:
+        """简化复杂表格"""
+        lines = table_text.strip().split('\n')
+
+        # 解析表头和数据
+        header_line = None
+        data_lines = []
+
+        for line in lines:
+            if '|' in line and not line.strip().startswith('|---'):
+                if header_line is None:
+                    header_line = line
+                else:
+                    data_lines.append(line)
+
+        if not header_line:
+            return table_text
+
+        # 简化：减少列数，保留关键列
+        headers = [h.strip() for h in header_line.split('|') if h.strip()]
+
+        # 如果列太多，转换为列表形式
+        if len(headers) > 5:
+            return TableSimplifier._to_list_format(headers, data_lines)
+
+        return table_text
+
+    @staticmethod
+    def _to_list_format(headers: list, data_lines: list) -> str:
+        """转换为列表格式"""
+        output = []
+
+        for i, line in enumerate(data_lines):
+            cells = [c.strip() for c in line.split('|') if c.strip()]
+            output.append(f"### 项目{i+1}")
+
+            for j, header in enumerate(headers):
+                if j < len(cells):
+                    output.append(f"- **{header}**：{cells[j]}")
+            output.append("")
+
+        return '\n'.join(output)
+```
+
+### 坑3：代码块嵌套混乱
+
+```python
+class CodeBlockFixer:
+    """代码块修复器"""
+
+    @staticmethod
+    def fix_nested_code(text: str) -> str:
+        """修复嵌套的代码块"""
+        import re
+
+        # 方案1：使用不同语言标记
+        # 方案2：转义内层代码块
+
+        lines = text.split('\n')
+        result = []
+        in_code_block = False
+        code_block_start = None
+
+        for line in lines:
+            # 检测代码块开始
+            if line.strip().startswith('```'):
+                if not in_code_block:
+                    in_code_block = True
+                    code_block_start = line
+                    result.append(line)
+                else:
+                    # 内层代码块 - 需要转义
+                    # 检查语言是否不同
+                    if line != code_block_start:
+                        # 暂时结束外层，插入转义的代码
+                        result.append(code_block_start.replace('```', '~~~'))
+                        result.append(line.replace('```', '~~~'))
+                        result.append(code_block_start.replace('```', '~~~'))
+                        result.append(line)
+                    else:
+                        result.append(line)
+                        in_code_block = False
+                        code_block_start = None
+            else:
+                result.append(line)
+
+        return '\n'.join(result)
+
+    @staticmethod
+    def avoid_nesting(text: str) -> str:
+        """避免嵌套：改用其他方式"""
+        # 方案1：用行内代码代替
+        # 方案2：用引用代替
+        # 方案3：拆分成多个独立块
+
+        lines = text.split('\n')
+        result = []
+
+        in_code_block = False
+        buffer = []
+
+        for line in lines:
+            if line.strip().startswith('```'):
+                if not in_code_block:
+                    in_code_block = True
+                    result.extend(buffer)
+                    buffer = []
+                    result.append(line)
+                else:
+                    # 代码块结束
+                    result.append(line)
+                    in_code_block = False
+            elif '`' in line and not in_code_block:
+                # 包含行内代码，整行保留
+                buffer.append(line)
+            else:
+                buffer.append(line)
+
+        result.extend(buffer)
+        return '\n'.join(result)
+```
+
+---
+
+## 六、生产级Markdown生成器
+
+```python
+class ProductionMarkdownGenerator:
+    """生产级Markdown生成器"""
+
+    def __init__(self):
+        self.sections = []
+
+    def add_heading(self, text: str, level: int = 1):
+        """添加标题"""
+        prefix = '#' * level
+        self.sections.append(f"{prefix} {text}\n")
+        return self
+
+    def add_paragraph(self, text: str):
+        """添加段落"""
+        self.sections.append(f"{text}\n")
+        return self
+
+    def add_bullet_list(self, items: list, ordered: bool = False):
+        """添加列表"""
+        for i, item in enumerate(items, 1):
+            prefix = f"{i}." if ordered else "-"
+            self.sections.append(f"{prefix} {item}\n")
+        return self
+
+    def add_code_block(self, code: str, language: str = ""):
+        """添加代码块"""
+        self.sections.append(f"```{language}\n{code}\n```\n")
+        return self
+
+    def add_callout(self, text: str, callout_type: str = "note"):
+        """添加标注"""
+        self.sections.append(f"> [!{callout_type}]\n> {text}\n")
+        return self
+
+    def add_table(self, headers: list, rows: list):
+        """添加表格"""
+        # 表头
+        self.sections.append("| " + " | ".join(headers) + " |\n")
+        # 分隔线
+        self.sections.append("|" + "|".join(["---"] * len(headers)) + "|\n")
+        # 数据行
+        for row in rows:
+            self.sections.append("| " + " | ".join(str(c) for c in row) + " |\n")
+        return self
+
+    def add_divider(self):
+        """添加分隔线"""
+        self.sections.append("---\n")
+        return self
+
+    def add_section(self, title: str, content: str):
+        """添加区块"""
+        self.sections.append(f"## {title}\n")
+        self.sections.append(f"{content}\n")
+        return self
+
+    def build(self) -> str:
+        """生成最终Markdown"""
+        return ''.join(self.sections)
+
+
+# 使用示例
+def demo_markdown_generator():
+    """演示Markdown生成器"""
+    md = ProductionMarkdownGenerator()
+
+    result = md.add_heading("项目报告", 1) \
+               .add_divider() \
+               .add_section("项目概述", "这是一个示例项目") \
+               .add_heading("关键指标", 2) \
+               .add_table(
+                   ["指标", "数值", "状态"],
+                   [
+                       ["用户数", "10,000", "✅ 达标"],
+                       ["转化率", "5.2%", "⚠️ 略低"],
+                       ["响应时间", "120ms", "✅ 优秀"]
+                   ]
+               ) \
+               .add_heading("待办事项", 2) \
+               .add_bullet_list([
+                   "优化数据库查询",
+                   "增加缓存层",
+                   "完善单元测试"
+               ]) \
+               .add_heading("代码示例", 2) \
+               .add_code_block("print('Hello, World!')", "python") \
+               .add_callout("注意：以上代码仅供参考", "warning") \
+               .build()
+
+    print(result)
+
+
+# 直接使用示例
+def demo_direct_usage():
+    """直接使用Markdown"""
+
+    # 生成提示词
+    prompt = """# 技术方案评审
+
+## 方案概述
+请评审以下技术方案：
+
+## 方案详情
+
+### 架构设计
+```
+┌─────────────┐     ┌─────────────┐
+│   前端      │────▶│   API网关   │
+└─────────────┘     └─────────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │   服务层    │
+                   └─────────────┘
+```
+
+### 技术栈
+| 组件 | 技术选型 | 理由 |
+|------|----------|------|
+| 前端 | React | 生态完善 |
+| 后端 | Go | 性能优秀 |
+| 数据库 | PostgreSQL | 可靠 |
+
+### 性能指标
+- **QPS**: 10,000+
+- **延迟**: < 50ms
+- **可用性**: 99.9%
+
+## 评审要点
+
+请重点关注：
+1. 架构是否合理？
+2. 技术选型是否合适？
+3. 性能指标能否达标？
+
+> [!question]
+> 需要特别关注数据库扩展性问题
+"""
+
+    print(prompt)
+```
+
+---
+
+## 七、总结
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Markdown最佳实践速查表                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  🎯 核心原则                                                         │
+│  ├─ 结构清晰：善用标题、列表、表格                                      │
+│  ├─ 突出重点：用粗体、标注、颜色                                       │
+│  ├─ 区块分明：用分隔线区分不同内容                                     │
+│  └─ 代码完整：确保代码块可运行                                         │
+│                                                                      │
+│  📊 常用模板                                                         │
+│  ├─ 角色定义：背景 + 专业领域 + 约束                                  │
+│  ├─ 任务说明：任务 + 要求 + 示例                                      │
+│  ├─ 输出格式：格式 + 示例 + 注意事项                                  │
+│  └─ 分步思考：步骤 + 推理 + 结论                                      │
+│                                                                      │
+│  ⚠️ 常见问题                                                         │
+│  ├─ 平台兼容性：不同LLM支持不同语法                                   │
+│  ├─ 表格复杂：超过5列改用列表                                          │
+│  ├─ 代码嵌套：用语言区分或拆分                                        │
+│  └─ 过度格式：简洁比花哨更重要                                        │
+│                                                                      │
+│  💡 进阶技巧                                                         │
+│  ├─ Obsidian Callout：平台特有的标注语法                             │
+│  ├─ Mermaid图：用文字画图                                            │
+│  └─ 变量模板：用{placeholder}标记待填内容                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## 相关主题
-- [[相关文档1]]
-- [[相关文档2]]
-```
 
-## 十一、相关主题
+- [[分隔符与标记系统]] - Markdown中的分隔符使用
+- [[上下文结构化]] - 整体上下文组织策略
+- [[Prompt工程基础]] - Markdown在Prompt中的应用
 
-- [[分隔符与标记系统]]
-- [[上下文结构化]]
-- [[RAG上下文优化指南]]
-- [[上下文压缩技术]]
-- [[Obsidian格式最佳实践]]
+---
 
-## 十二、参考文献
+## 参考文献
 
-1. Gruber, J. (2004). Markdown.
-2. Obsidian (2024). Obsidian Flavored Markdown.
-3. CommonMark (2024). A strongly defined, highly compatible specification of Markdown.
+1. Gruber, J. (2004). **Markdown Syntax Documentation.**
+2. CommonMark. **A Common Markdown Specification.**
+3. Obsidian. **Obsidian Formatting Syntax.**

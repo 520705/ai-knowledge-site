@@ -1,345 +1,1062 @@
 ---
-title: n8n平台深度指南
-date: 2026-04-18
+title: n8n平台深度指南：工作流自动化与AI集成
+date: 2026-04-24
 tags:
   - n8n
   - 工作流自动化
   - AI集成
   - 低代码平台
+  - 流程自动化
 categories:
   - 智能体搭建
   - n8n平台
-alias: n8n完整教程
+description: 全面介绍n8n平台的功能特性、工作流编辑器、AI节点配置、自定义节点开发以及实战案例，帮助读者掌握这一强大的工作流自动化工具。
 ---
 
-# n8n平台深度指南
+# n8n平台深度指南：工作流自动化与AI集成
 
-> [!abstract] 摘要
-> n8n是一款强大的开源工作流自动化平台，支持可视化拖拽构建工作流，内置400+应用集成，深度支持AI能力。本文档全面介绍n8n平台的核心功能、工作流编辑器、AI节点及实战技巧。
+> [!NOTE] 这篇指南讲什么
+> n8n是一款强大的开源工作流自动化工具，特别擅长连接各种服务和数据处理。这篇指南从基础入门讲到进阶实战，让你从零开始掌握n8n。
 
-## 核心关键词速览
+## n8n是什么？
 
-| 关键词 | 说明 | 关键词 | 说明 |
-|--------|------|--------|------|
-| 工作流编辑器 | 可视化拖拽构建 | AI节点 | 内置LLM/Prompt节点 |
-| 400+集成 | 第三方应用连接 | 自托管 | 私有化部署选项 |
-| 代码节点 | JavaScript/Python执行 | Webhook | 事件触发接口 |
-| 错误处理 | 自动化容错机制 | 凭证管理 | 安全存储敏感信息 |
-| 子工作流 | 模块化复用 | 执行历史 | 调试与回溯 |
-| n8n表达式 | 数据转换语言 | 版本控制 | 工作流版本管理 |
+n8n（发音"n-eight-n"）是一款开源的工作流自动化工具。它可以帮你把各种服务连接起来，自动执行各种任务。
 
-## 1. n8n平台概述
+用大白话讲：**n8n就是自动化领域的"瑞士军刀"**，它能把Gmail、Slack、Notion、数据库、各种API...全都连起来，让它们自动配合工作。
 
-### 1.1 平台定位与优势
+打个比方：
 
-n8n（发音为"n-eight-n"）是一款开源的工作流自动化工具，由德国团队开发维护。与Zapier、Make等商业平台相比，n8n的核心优势在于：
+**不用n8n** → 每天手动从A系统导数据，整理格式，再导入B系统，累死
+**用n8n** → 搭一个自动化流程，每天下午6点自动完成以上操作，爽歪歪
 
-- **完全开源**：代码透明，可自托管部署，数据不经过第三方
-- **灵活扩展**：支持自定义节点开发，满足个性化需求
-- **成本可控**：自托管版本免费，适合企业级应用
-- **AI优先**：深度集成大语言模型，支持AI工作流构建
+### n8n vs 其他自动化工具
 
-> [!tip] 选型建议
-> 个人用户或小型团队可使用n8n.cloud托管版本快速上手；中大型企业建议自托管部署以获得更好的数据控制和成本优化。
+| 工具 | 定位 | AI能力 | 成本 | 适合人群 |
+|------|------|--------|------|----------|
+| **n8n** | 通用自动化+AI | 强 | 开源免费 | 技术团队、企业 |
+| Zapier | SaaS自动化 | 弱 | 按执行次数收费 | 非技术用户 |
+| Make | 可视化自动化 | 中 | 按执行次数收费 | 中级用户 |
+| Airflow | 数据管道 | 弱 | 开源免费 | 数据工程师 |
 
-### 1.2 核心架构
+**n8n的优势：**
+- 完全开源，可以私有化部署
+- 支持自定义代码（JavaScript/Python）
+- AI能力强大（LLM、Embedding、Agent）
+- 800+集成，覆盖主流服务
+- 社区活跃，模板丰富
 
-n8n的架构由以下核心组件构成：
+## 核心概念
 
-```mermaid
-graph TD
-    A[触发器节点] --> B[处理节点]
-    B --> C[集成节点]
-    C --> D[输出节点]
-    B --> E[AI节点]
-    E --> F[LLM/Embedding]
-    A --> G[Webhook触发]
-    A --> H[定时触发]
-    A --> I[事件触发]
-```
+### 工作流（Workflow）
 
-- **触发器层**：Webhook、定时器、事件监听构成工作流入口
-- **处理层**：数据转换、条件分支、循环迭代等逻辑控制
-- **集成层**：400+应用连接器实现外部系统对接
-- **AI层**：LLM节点、Prompt节点、Memory节点提供AI能力
-
-## 2. 工作流编辑器详解
-
-### 2.1 界面布局
-
-n8n的工作流编辑器采用直观的画布式设计：
+工作流是n8n的核心概念。你可以把它理解为**一系列自动执行的步骤**。
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  [执行历史] [模板] [变量] [凭证]          [保存] [执行]  │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐         │
-│   │  触发器   │───▶│  处理1   │───▶│  输出节点 │         │
-│   └──────────┘    └──────────┘    └──────────┘         │
-│                          │                               │
-│                          ▼                               │
-│                   ┌──────────┐                          │
-│                   │  处理2   │                          │
-│                   └──────────┘                          │
-│                                                         │
-├─────────────────────────────────────────────────────────┤
-│  [节点面板]                                              │
-│  ▼ 触发器                                                │
-│    Webhook / 定时 / 事件                                │
-│  ▼ 应用节点                                              │
-│    HTTP请求 / 代码 / AI / 数据库                        │
-└─────────────────────────────────────────────────────────┘
+触发器 → 处理节点1 → 处理节点2 → ... → 输出
 ```
 
-### 2.2 节点类型体系
+**组成要素：**
 
-n8n的节点分为以下几大类：
+- **触发器（Trigger）**：工作流的起点，定义"什么时候开始执行"
+- **节点（Node）**：每个具体的操作步骤
+- **连接线（Connection）**：节点之间的数据流向
+- **数据（Data）**：节点之间传递的信息
 
-| 节点类别 | 代表节点 | 用途 |
-|----------|----------|------|
-| 触发器 | Webhook、定时器、轮询 | 启动工作流 |
-| 通信 | Slack、Email、Telegram | 消息通知 |
+### 节点类型
+
+n8n有数百种节点，分为几大类：
+
+| 类型 | 例子 | 说明 |
+|------|------|------|
+| 触发器 | Webhook、定时器、事件 | 启动工作流 |
+| 通信 | Gmail、Slack、Email、Telegram | 消息发送接收 |
 | 数据 | HTTP请求、代码、转换 | 数据处理 |
-| AI | LLM、Prompt、Memory | AI能力 |
-| 数据库 | MySQL、MongoDB、Redis | 数据持久化 |
-| 工具 | OAuth2 API、凭证 | 认证与安全 |
+| AI | LLM、Prompt、Memory、Embedding | AI能力 |
+| 数据库 | MySQL、MongoDB、PostgreSQL | 数据读写 |
+| 工具 | OAuth2、凭证管理 | 认证和安全 |
 
-### 2.3 节点连接与数据流
+### 数据流
 
-n8n采用节点连线的方式传递数据，每个节点的输出成为下一个节点的输入：
+n8n采用节点连接的方式传递数据。每个节点的输出成为下一个节点的输入。
+
+**数据格式：**
 
 ```javascript
-// n8n表达式示例：获取上一个节点的输出
-{{ $json.message }}
-{{ $node["节点名称"].json["字段名"] }}
-{{ $inputs.first().json.array[0] }}
-
-// 复杂表达式
-{{ new Date().toISOString().split('T')[0] }}
-{{ $json.price * (1 + $json.taxRate / 100) }}
+// 节点输出通常是JSON格式
+{
+  "json": {
+    "id": 1,
+    "name": "张三",
+    "email": "zhangsan@example.com"
+  },
+  "binary": {}  // 二进制数据（如文件）
+}
 ```
 
-> [!example] 数据转换实战
-> 假设API返回的用户数据结构为：
-> ```json
-> { "user": { "name": "张三", "age": 28 } }
-> ```
-> 在下一节点中使用表达式获取嵌套字段：
-> ```
-> {{ $json.user.name }}
-> // 输出：张三
-> ```
+**引用其他节点的数据：**
 
-## 3. AI节点详解
+```javascript
+// 引用上一个节点的输出
+{{ $json.fieldName }}
 
-### 3.1 LLM Chain节点
+// 引用指定节点的输出
+{{ $node["NodeName"].json["fieldName"] }}
 
-LLM Chain是n8n中连接AI模型的核心节点：
+// 引用输入数据
+{{ $input.first().json["fieldName"] }}
+```
+
+## 安装部署
+
+### Docker快速部署（推荐）
+
+```bash
+# 单容器快速部署
+docker run -d --name n8n \
+  -p 5678:5678 \
+  -v n8n_data:/home/node/.n8n \
+  -e GENERIC_TIMEZONE="Asia/Shanghai" \
+  docker.n8n.io/n8nio/n8n:latest
+```
+
+然后打开 http://localhost:5678 就能用了。
+
+### Docker Compose生产部署
+
+创建 `docker-compose.yml`：
 
 ```yaml
-配置参数:
-  model: gpt-4  # 模型选择
-  messages:
-    - role: system
-      content: "你是一个专业的翻译助手"
-    - role: user
-      content: "{{ $json.text }}"
-  temperature: 0.3  # 创造性控制
-  maxTokens: 500    # 最大生成长度
-```
-
-### 3.2 Prompt节点
-
-Prompt节点用于构建结构化提示词：
-
-```markdown
-## Prompt模板语法
-
-基础变量：{{ $json.input }}
-条件判断：{{ $json.lang === 'en' ? '翻译为英文' : '翻译为中文' }}
-循环迭代：{{ $json.items.map(i => i.name).join(', ') }}
-```
-
-### 3.3 Memory节点
-
-Memory节点实现对话上下文管理：
-
-| Memory类型 | 适用场景 | 配置要点 |
-|------------|----------|----------|
-| 窗口Buffer | 短期对话 | 设置窗口大小 |
-| 向量存储 | 长期记忆 | 选择向量数据库 |
-| 缓冲+向量 | 综合场景 | 两层结合使用 |
-
-## 4. 实战案例：构建AI客服工作流
-
-### 4.1 需求分析
-
-构建一个智能客服系统，具备以下功能：
-- 接收用户通过Webhook发送的咨询
-- 判断意图（售前/售后/投诉）
-- 调用不同知识库回答
-- 支持转人工机制
-- 记录对话日志
-
-### 4.2 工作流设计
-
-```mermaid
-graph LR
-    A[Webhook] --> B{意图识别}
-    B -->|售前| C[产品知识库]
-    B -->|售后| D[FAQ知识库]
-    B -->|投诉| E[转人工]
-    C --> F[生成回答]
-    D --> F
-    E --> F
-    F --> G[记录日志]
-    G --> H[返回用户]
-```
-
-### 4.3 完整配置
-
-**步骤1：Webhook触发器**
-```yaml
-method: POST
-path: /customer-service
-authentication: none  # 生产环境应启用JWT
-```
-
-**步骤2：意图识别LLM调用**
-```yaml
-model: gpt-4
-prompt: |
-  分析用户消息的意图类别：
-  - 售前咨询：产品功能、价格、购买
-  - 售后支持：使用问题、退换货、维修
-  - 投诉建议：不满反馈、改进建议
-  
-  用户消息：{{ $json.message }}
-  
-  只返回意图类别名称（售前/售后/投诉之一）
-```
-
-**步骤3：知识库查询**
-```yaml
-# 使用向量搜索
-vectorStore: Pinecone
-collection: knowledge_base
-query: "{{ $json.message }}"
-topK: 3
-```
-
-**步骤4：回答生成**
-```yaml
-model: gpt-4
-prompt: |
-  基于以下知识回答用户问题：
-  
-  知识内容：
-  {{ $json.retrieved_docs }}
-  
-  用户问题：{{ $json.message }}
-  
-  要求：
-  1. 回答简洁专业
-  2. 如知识库无相关内容，回复"暂时无法回答您的问题"
-  3. 涉及转人工时，提示用户输入"转人工"
-```
-
-> [!warning] 注意事项
-> 1. 生产环境务必启用Webhook认证
-> 2. 建议添加速率限制防止滥用
-> 3. 对话日志需符合数据合规要求
-
-## 5. 部署与运维
-
-### 5.1 Docker部署
-
-```yaml
-# docker-compose.yml
 version: '3'
+
 services:
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:latest
+    restart: always
     ports:
       - "5678:5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=${DOMAIN}
-      - N8N_PROTOCOL=https
-      - WEBHOOK_URL=https://${DOMAIN}/
-    volumes:
-      - ./data:/home/node/.n8n
-    restart: unless-stopped
-```
-
-### 5.2 环境变量配置
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| N8N_BASIC_AUTH_ACTIVE | 启用基础认证 | true |
-| N8N_HOST | 访问域名 | n8n.example.com |
-| N8N_PROTOCOL | 协议类型 | https |
-| WEBHOOK_URL | Webhook基础URL | https://n8n.example.com |
-| EXECUTIONS_DATA_SAVE_ON_ERROR | 错误时保存数据 | all |
-| EXECUTIONS_DATA_SAVE_ON_SUCCESS | 成功时保存数据 | all |
-
-### 5.3 高可用配置
-
-```yaml
-# 使用PostgreSQL作为主数据库
-services:
-  n8n:
-    depends_on:
-      - postgres
-    environment:
+      - N8N_BASIC_AUTH_PASSWORD=你的密码
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - GENERIC_TIMEZONE=Asia/Shanghai
       - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_HOST=n8n-db
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=n8n
       - DB_POSTGRESDB_USER=n8n
-      - DB_POSTGRESDB_PASS=${DB_PASSWORD}
+      - DB_POSTGRESDB_PASSWORD=n8n密码
+      - EXECUTIONS_MODE=queue
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - n8n-db
   
-  postgres:
+  n8n-db:
     image: postgres:15
     environment:
       - POSTGRES_DB=n8n
       - POSTGRES_USER=n8n
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_PASSWORD=n8n密码
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  n8n_data:
+  postgres_data:
 ```
 
-## 6. 性能优化
+启动：
 
-### 6.1 执行效率提升
+```bash
+docker compose up -d
+```
 
-1. **异步并行**：使用SplitInBatches节点并行处理
-2. **缓存复用**：重复调用的API结果缓存
-3. **分页处理**：大数据量分批处理避免超时
-4. **精简数据**：只传递必要字段减少传输
+### npm本地安装
 
-### 6.2 监控告警
+```bash
+# 全局安装
+npm install n8n -g
+
+# 启动
+n8n
+# 或指定端口
+n8n start --port 5679
+```
+
+### 环境变量配置
+
+| 变量名 | 说明 | 示例 |
+|--------|------|------|
+| N8N_BASIC_AUTH_ACTIVE | 启用基础认证 | true |
+| N8N_BASIC_AUTH_USER | 用户名 | admin |
+| N8N_BASIC_AUTH_PASSWORD | 密码 | your_password |
+| N8N_HOST | 访问地址 | 0.0.0.0 |
+| N8N_PORT | 端口 | 5678 |
+| N8N_PROTOCOL | 协议 | https |
+| WEBHOOK_URL | Webhook基础URL | https://example.com |
+| GENERIC_TIMEZONE | 时区 | Asia/Shanghai |
+
+## 工作流编辑器
+
+### 界面布局
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [执行历史] [模板] [变量] [凭证]          [保存] [执行]    │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐             │
+│  │  触发器   │───▶│  处理1   │───▶│  输出节点 │             │
+│  └──────────┘    └──────────┘    └──────────┘             │
+│                         │                                    │
+│                         ▼                                    │
+│                  ┌──────────┐                               │
+│                  │  处理2   │                               │
+│                  └──────────┘                               │
+│                                                              │
+├─────────────────────────────────────────────────────────────┤
+│  [节点面板]                                                  │
+│  ▼ 触发器                                                   │
+│    Webhook / 定时 / 事件                                    │
+│  ▼ 应用节点                                                 │
+│    HTTP请求 / 代码 / AI / 数据库                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 节点操作
+
+**添加节点：**
+1. 从左侧节点面板拖拽到画布
+2. 或者点击"+"按钮，搜索节点名称
+
+**连接节点：**
+1. 点击节点的输出端口（右侧圆点）
+2. 拖动到目标节点的输入端口（左侧圆点）
+3. 松开鼠标完成连接
+
+**配置节点：**
+1. 点击节点打开配置面板
+2. 填写必要的配置参数
+3. 节点变成蓝色表示已配置完成
+
+### 表达式语法
+
+n8n使用表达式来处理动态数据。
+
+**基础用法：**
+
+```javascript
+// 引用JSON字段
+{{ $json.message }}
+
+// 引用节点数据
+{{ $node["Webhook"].json["body"]["text"] }}
+
+// 引用输入数据
+{{ $input.first().json["field"] }}
+
+// 数学运算
+{{ $json.price * 1.1 }}
+
+// 条件判断
+{{ $json.status === "active" ? "启用" : "禁用" }}
+
+// 日期时间
+{{ new Date().toISOString() }}
+
+// 字符串处理
+{{ $json.name.toUpperCase() }}
+
+// 数组操作
+{{ $json.items.map(i => i.value).join(", ") }}
+```
+
+## AI节点详解
+
+### AI节点体系
+
+n8n提供了完整的AI能力组件：
+
+```
+用户输入 → LLM Chain → Agent
+                    ↓
+              ┌─────┴─────┐
+              ↓           ↓
+           Tools      Memory
+              ↓           ↓
+         外部API      向量存储
+```
+
+### LLM Chain节点
+
+LLM Chain是调用大语言模型的核心节点。
+
+**配置示例：**
 
 ```yaml
-# 错误监控工作流
-触发: 定时器 (每小时)
-处理:
-  1. 查询执行历史
-  2. 筛选失败记录
-  3. 发送告警通知
-  4. 记录到监控数据库
+节点配置:
+  # 模型选择
+  provider: OpenAI
+  model: gpt-4o
+  
+  # 认证
+  credentials: OpenAI API (你的API Key)
+  
+  # 消息配置
+  messages:
+    - role: system
+      content: |
+        你是一个专业的技术文档助手。
+        擅长用简洁清晰的语言解释复杂概念。
+    
+    - role: user
+      content: "{{ $json.userMessage }}"
+  
+  # 生成参数
+  options:
+    temperature: 0.7      # 控制创造性，0-2，越高越有创意
+    maxTokens: 1000       # 最大生成长度
+    topP: 1.0            # 采样策略
 ```
 
-## 7. 相关资源
+**支持的模型：**
 
-- [[n8n与LLM集成]] - n8n的AI能力详解
+| 模型 | 提供商 | 特点 |
+|------|--------|------|
+| GPT-4o | OpenAI | 最强综合能力 |
+| GPT-4o-mini | OpenAI | 性价比高 |
+| Claude 3.5 | Anthropic | 长文本处理强 |
+| Gemini 1.5 | Google | 多模态 |
+| DeepSeek | DeepSeek | 国产便宜 |
+| 本地Ollama | 本地 | 完全免费 |
+
+### Prompt节点
+
+Prompt节点用于构建结构化提示词。
+
+**模板语法：**
+
+```markdown
+## 基础变量
+{{ $json.field }}                     # JSON字段
+{{ $node["NodeName"].json.field }}    # 指定节点字段
+{{ $vars.secretKey }}                 # 变量
+
+## 条件逻辑
+{{ $json.lang === 'zh' ? '中文' : '英文' }}
+
+## 循环处理
+{{ $json.items.map(item => `- ${item.name}`).join('\n') }}
+
+## 数学运算
+{{ Math.round($json.price * 1.1) }}
+```
+
+**Few-shot Prompt示例：**
+
+```yaml
+messages:
+  - role: system
+    content: |
+      你是一个情感分类助手。
+  
+  - role: user
+    content: |
+      示例：
+      输入："这个产品太棒了！"
+      分类：正面
+      
+      输入："服务态度太差了"
+      分类：负面
+      
+      请分类：
+      输入："{{ $json.comment }}"
+```
+
+### Memory节点
+
+Memory节点管理对话上下文。
+
+**内存类型对比：**
+
+| 类型 | 说明 | 适用场景 |
+|------|------|----------|
+| Buffer Window | 固定窗口 | 短期对话 |
+| Vector Store | 向量数据库 | 长期记忆 |
+| Summary | 摘要压缩 | 压缩历史 |
+| Combined | 混合模式 | 综合场景 |
+
+**Buffer Memory配置：**
+
+```yaml
+type: bufferWindow
+windowSize: 10  # 保留最近10轮对话
+sessionKey: "{{ $json.sessionId }}"  # 按会话隔离
+```
+
+**向量记忆配置：**
+
+```yaml
+type: vectorStore
+provider: Pinecone
+index: conversations
+metadata:
+  userId: "{{ $json.userId }}"
+```
+
+### Embedding节点
+
+Embedding节点将文本转换为向量。
+
+```yaml
+配置:
+  provider: OpenAI
+  model: text-embedding-3-small
+  input: "{{ $json.text }}"
+```
+
+### AI Agent节点
+
+AI Agent能自主决策和执行任务。
+
+**ReAct Agent配置：**
+
+```yaml
+type: ReAct
+llm: gpt-4o
+tools:
+  - search_knowledge_base
+  - calculator
+  - web_search
+maxIterations: 10
+earlyStopping: true
+```
+
+**Agent执行流程：**
+
+```
+用户请求 → Agent分析
+              ↓
+        需要工具?
+          ↓是     ↓否
+      选择工具  生成回答
+          ↓
+      执行工具
+          ↓
+      获取结果 → 返回用户
+          ↓
+      继续分析（循环直到完成）
+```
+
+## 常用节点配置
+
+### Webhook触发器
+
+Webhook允许外部系统触发工作流。
+
+**创建Webhook：**
+
+1. 添加Webhook节点
+2. 选择HTTP方法（GET/POST）
+3. 保存节点，复制生成的URL
+4. 外部系统调用该URL即可触发
+
+**调用示例：**
+
+```bash
+# GET请求
+curl "https://your-n8n.com/webhook/your-path"
+
+# POST请求
+curl -X POST "https://your-n8n.com/webhook/your-path" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "hello"}'
+```
+
+### HTTP Request节点
+
+HTTP Request调用外部API。
+
+**GET请求：**
+
+```yaml
+method: GET
+url: "https://api.example.com/users"
+qs: 
+  page: "{{ $json.page }}"
+  limit: 10
+headers:
+  Authorization: "Bearer {{ $credentials.apiKey }}"
+```
+
+**POST请求：**
+
+```yaml
+method: POST
+url: "https://api.example.com/users"
+body: json
+bodyParameters:
+  - name: name
+    value: "{{ $json.name }}"
+  - name: email
+    value: "{{ $json.email }}"
+```
+
+### Code节点
+
+Code节点执行JavaScript/Python代码。
+
+**JavaScript示例：**
+
+```javascript
+// 获取输入数据
+const data = $input.first().json;
+
+// 数据处理
+const processed = {
+  id: data.id,
+  name: data.name.toUpperCase(),
+  score: data.score * 1.1,
+  createdAt: new Date().toISOString()
+};
+
+// 返回结果
+return [{ json: processed }];
+```
+
+**多输入处理：**
+
+```javascript
+// 处理多个输入项
+const items = $input.all();
+
+const results = items.map(item => ({
+  json: {
+    original: item.json,
+    normalized: {
+      id: item.json.id,
+      name: item.json.name.trim(),
+      value: Number(item.json.value)
+    }
+  }
+}));
+
+return results;
+```
+
+### 数据库节点
+
+**MySQL示例：**
+
+```yaml
+operation: executeQuery
+query: "SELECT * FROM users WHERE status = ?"
+values:
+  - "{{ $json.status }}"
+```
+
+**MongoDB示例：**
+
+```yaml
+operation: find
+collection: users
+query:
+  status: "{{ $json.status }}"
+  limit: 10
+```
+
+## 实战案例
+
+### 案例一：AI客服工作流
+
+**需求：** 接收用户消息，判断意图，查询知识库，返回回答。
+
+```
+Webhook → 意图识别LLM → 知识库检索 → 生成回答 → 回复用户
+```
+
+**详细配置：**
+
+**1. Webhook触发器**
+```yaml
+method: POST
+path: customer-service
+authentication: none
+```
+
+**2. 意图识别LLM**
+```yaml
+model: gpt-4o-mini
+prompt: |
+  分析用户消息的意图：
+  - pre_sales: 售前咨询
+  - after_sales: 售后问题
+  - complaint: 投诉建议
+  
+  用户消息：{{ $json.message }}
+  
+  只返回意图类别名称。
+```
+
+**3. 知识库检索（Vector Store）**
+```yaml
+operation: retrieve
+vectorStore: Pinecone
+index: knowledge_base
+query: "{{ $json.message }}"
+topK: 3
+```
+
+**4. 生成回答LLM**
+```yaml
+model: gpt-4o
+prompt: |
+  基于以下知识回答用户问题：
+  
+  知识内容：
+  {{ $node["Pinecone"].json.results.map(r => r.text).join('\n\n') }}
+  
+  用户问题：{{ $json.message }}
+  
+  要求：
+  1. 回答简洁专业
+  2. 如知识库无相关内容，诚实说不知道
+  3. 引导转人工处理复杂问题
+```
+
+### 案例二：社交媒体自动发布
+
+**需求：** 每周一自动从Notion读取内容，生成社交媒体帖子，发布到Twitter和LinkedIn。
+
+```
+定时器 → Notion读取 → AI改写 → 条件分流 → Twitter发布
+                                                  → LinkedIn发布
+```
+
+**详细配置：**
+
+**1. 定时触发器**
+```yaml
+type: Schedule
+rule:
+  interval: [1, "week"]
+cron: "0 9 * * 1"  # 每周一早上9点
+```
+
+**2. Notion读取**
+```yaml
+operation: search
+databaseId: 你的数据库ID
+filter:
+  property: Status
+  select:
+    equals: Ready
+```
+
+**3. AI改写（多个输出）**
+
+```yaml
+# Twitter版本
+model: gpt-4o-mini
+prompt: |
+  将以下内容改写成Twitter帖子（280字以内）：
+  
+  内容：{{ $json.content }}
+  
+  要求：
+  1. 简洁有吸引力
+  2. 适当使用emoji
+  3. 添加相关话题标签
+```
+
+```yaml
+# LinkedIn版本
+model: gpt-4o-mini
+prompt: |
+  将以下内容改写成LinkedIn帖子：
+  
+  内容：{{ $json.content }}
+  
+  要求：
+  1. 专业但有温度
+  2. 包含简短的个人见解
+  3. 鼓励互动（提问或讨论）
+```
+
+**4. Twitter发布**
+```yaml
+operation: createTweet
+text: "{{ $node["TwitterRewrite"].json.text }}"
+```
+
+**5. LinkedIn发布**
+```yaml
+operation: createPost
+content: "{{ $node["LinkedInRewrite"].json.text }}"
+```
+
+### 案例三：数据同步与处理
+
+**需求：** 每天凌晨同步CRM数据到数据仓库，清洗处理后生成报表。
+
+```
+定时器 → CRM读取 → 数据清洗 → 数据仓库写入 → 发送报表
+```
+
+**详细配置：**
+
+**1. 定时触发器**
+```yaml
+type: Schedule
+rule:
+  interval: [1, "day"]
+cron: "0 2 * * *"  # 每天凌晨2点
+```
+
+**2. CRM读取**
+```yaml
+# Salesforce示例
+operation: executeQuery
+query: |
+  SELECT Id, Name, Email, Amount, CreatedDate 
+  FROM Opportunity 
+  WHERE CreatedDate = LAST_N_DAYS:1
+```
+
+**3. 数据清洗（Code节点）**
+```javascript
+const records = $input.all();
+
+const cleaned = records.map(record => {
+  const data = record.json;
+  
+  return {
+    json: {
+      id: data.Id,
+      name: data.Name?.trim(),
+      email: data.Email?.toLowerCase().trim(),
+      amount: Number(data.Amount) || 0,
+      created_date: new Date(data.CreatedDate).toISOString(),
+      created_year: new Date(data.CreatedDate).getFullYear(),
+      created_month: new Date(data.CreatedDate).getMonth() + 1
+    }
+  };
+});
+
+// 返回清洗后的数据
+return cleaned;
+```
+
+**4. 数据仓库写入**
+```yaml
+# PostgreSQL示例
+operation: executeQuery
+query: |
+  INSERT INTO crm_opportunities 
+  (id, name, email, amount, created_date, created_year, created_month)
+  VALUES 
+  {{ $json.map(r => `('${r.id}', '${r.name}', '${r.email}', ${r.amount}, '${r.created_date}', ${r.created_year}, ${r.created_month})`).join(', ') }}
+  ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    amount = EXCLUDED.amount
+```
+
+**5. 生成并发送报表**
+```yaml
+# 计算统计
+model: gpt-4o-mini
+prompt: |
+  根据以下数据生成日报摘要：
+  
+  数据：
+  {{ JSON.stringify($input.all().map(i => i.json)) }}
+  
+  生成：
+  1. 今日新增商机数量
+  2. 总金额
+  3. 平均金额
+  4. 简短分析
+```
+
+```yaml
+# 发送邮件
+operation: send
+to: "manager@company.com"
+subject: "CRM日报 - {{ $now.format('YYYY-MM-DD') }}"
+html: |
+  <h2>CRM数据同步日报</h2>
+  <p>{{ $node["ReportLLM"].json.summary }}</p>
+```
+
+## 高级技巧
+
+### 错误处理
+
+**节点级错误处理：**
+
+```yaml
+errorOutput: true  # 启用错误输出
+continueOnFail: true  # 失败后继续执行
+```
+
+**工作流级错误处理：**
+
+```yaml
+onError:
+  - name: Error Workflow
+    trigger: error
+    workflow: "error-handler-workflow-id"
+```
+
+### 并行执行
+
+使用Split In Batches节点实现并行处理：
+
+```yaml
+# 先分割数据
+node: Split In Batches
+batchSize: 5
+options:
+  reset: false
+
+# 并行处理每个批次
+# 在后续节点中处理
+```
+
+### 变量管理
+
+**设置变量：**
+```yaml
+node: Set
+variables:
+  - name: totalCount
+    value: "{{ $json.count }}"
+  - name: processedAt
+    value: "{{ $now.toISO() }}"
+```
+
+**使用变量：**
+```javascript
+{{ $vars.totalCount }}
+{{ $vars.processedAt }}
+```
+
+### 子工作流
+
+把常用逻辑封装成子工作流复用：
+
+```yaml
+# 主工作流调用子工作流
+node: Workflow Trigger (sub-workflow)
+workflowId: "sub-workflow-id"
+waitForCallback: true
+passThroughData: true
+data: "{{ $json }}"
+```
+
+## 自定义节点开发
+
+### 节点项目结构
+
+```
+n8n-nodes-myplugin/
+├── package.json
+├── src/
+│   ├── nodes/
+│   │   └── MyNode/
+│   │       ├── MyNode.ts
+│   │       └── MyNodeDescription.ts
+│   └── credentials/
+│       └── MyCredentialsApi.ts
+├── README.md
+└── tsconfig.json
+```
+
+### package.json配置
+
+```json
+{
+  "name": "n8n-nodes-myplugin",
+  "version": "1.0.0",
+  "description": "我的自定义n8n节点",
+  "keywords": ["n8n", "nodes", "myplugin"],
+  "license": "MIT",
+  "n8n": {
+    "nodes": ["dist/MyNode.node.js"]
+  },
+  "dependencies": {
+    "n8n-core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0"
+  }
+}
+```
+
+### 节点描述定义
+
+```typescript
+import type { INodeTypeDescription } from 'n8n-workflow';
+
+export const myNodeDescription: INodeTypeDescription = {
+  displayName: '我的自定义节点',
+  name: 'myNode',
+  group: ['transform'],
+  version: 1,
+  description: '执行自定义逻辑的n8n节点',
+  defaults: {
+    name: '我的节点',
+  },
+  inputs: ['main'],
+  outputs: ['main'],
+  credentials: [
+    {
+      name: 'myCredentialsApi',
+      required: true,
+    },
+  ],
+  properties: [
+    {
+      displayName: '操作模式',
+      name: 'operation',
+      type: 'options',
+      options: [
+        {
+          name: '处理数据',
+          value: 'process',
+        },
+        {
+          name: '转换格式',
+          value: 'transform',
+        },
+      ],
+      default: 'process',
+      required: true,
+    },
+  ],
+};
+```
+
+### 节点实现
+
+```typescript
+import {
+  IExecuteFunctions,
+  INodeType,
+  INodeTypeDescription,
+} from 'n8n-workflow';
+import { myNodeDescription } from './MyNodeDescription';
+
+export class MyNode implements INodeType {
+  description: INodeTypeDescription = myNodeDescription;
+
+  async execute(this: IExecuteFunctions) {
+    const items = this.getInputData();
+    const returnData: any[] = [];
+    
+    const operation = this.getNodeParameter('operation', 0) as string;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i].json;
+      
+      if (operation === 'process') {
+        const result = {
+          ...item,
+          processed: true,
+          timestamp: new Date().toISOString(),
+        };
+        returnData.push({ json: result });
+      }
+    }
+    
+    return [returnData];
+  }
+}
+```
+
+## 生产环境优化
+
+### 性能优化
+
+**1. 启用执行超时**
+```yaml
+executionTimeout: 300  # 5分钟超时
+```
+
+**2. 减少不必要的数据传递**
+```javascript
+// 只传递需要的字段
+return [{ json: { id: item.json.id, name: item.json.name } }];
+```
+
+**3. 使用批量操作**
+```yaml
+# 数据库批量写入
+operation: batchUpdate
+batchSize: 100
+```
+
+### 高可用配置
+
+**多实例部署：**
+
+```yaml
+version: '3'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    deploy:
+      replicas: 3
+    environment:
+      - N8N_METRICS=true
+      - EXECUTIONS_MODE=queue
+    depends_on:
+      - redis
+  
+  worker:
+    image: n8nio/n8n:latest
+    deploy:
+      replicas: 2
+    command: n8n worker
+    environment:
+      - EXECUTIONS_MODE=queue
+    depends_on:
+      - redis
+  
+  redis:
+    image: redis:7-alpine
+```
+
+### 监控配置
+
+**启用Metrics：**
+```yaml
+N8N_METRICS=true
+N8N_METRICS_PORT=5678
+```
+
+**Prometheus抓取配置：**
+```yaml
+scrape_configs:
+  - job_name: 'n8n'
+    static_configs:
+      - targets: ['n8n:5678']
+```
+
+## 相关资源
+
+- [[n8n与LLM集成]] - n8n AI能力详解
 - [[工作流设计模式]] - 通用工作流设计原则
-- [[AI应用API化部署]] - 工作流API化部署方案
-- [[AI应用生产部署]] - 企业级部署最佳实践
+- [[Function Calling与工具调用]] - 工具调用规范
+- [[AI对话记忆系统]] - 记忆系统设计
+- [[AI应用API化部署]] - API部署方案
 
 ---
 
-*本文档由归愚知识系统自动生成 last updated: 2026-04-18*
+*本文档由归愚知识系统生成 last updated: 2026-04-24*

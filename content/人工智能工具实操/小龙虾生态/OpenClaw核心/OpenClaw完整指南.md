@@ -1,382 +1,473 @@
 ---
-title: OpenClaw完整指南
-date: 2026-04-18
+title: OpenClaw 完整指南
+date: 2026-04-24
 tags:
   - OpenClaw
-  - AI-Agent
-  - 个人助手
-  - 自托管
-  - 多渠道
+  - 完整指南
+  - 功能介绍
   - Pi-Framework
   - 记忆系统
-  - 插件系统
-  - Docker
-  - 配置管理
+  - 插件
 categories:
+  - 人工智能工具实操
   - 小龙虾生态
-  - OpenClaw核心
-alias: OpenClaw Complete Guide
+description: 全面介绍 OpenClaw 的所有功能，从 Pi Framework 到多平台集成，带你彻底玩转这个框架。
 ---
 
 # OpenClaw 完整指南
 
-> [!note] 文档信息
-> 本文档为 OpenClaw 框架的完整使用指南，涵盖架构原理、Pi Framework、自托管部署、多渠道集成、记忆系统等核心模块。
+> 这篇是 OpenClaw 的全面介绍。安装好了？或者只是想了解能干什么？看这篇就够了。
 
 ---
 
-## 关键词速览
+## 先说最重要的几个概念
 
-| 关键词 | 说明 |
-|--------|------|
-| OpenClaw | 开源 AI Agent 运行时框架 |
-| Pi Framework | 底层极简 Agent 开发框架 |
-| Gateway | 消息路由与渠道适配网关 |
-| ClawHub | 3200+ 技能插件市场 |
-| 自托管 | 本地部署，数据自主控制 |
-| 多渠道 | 支持 20+ 聊天平台 |
-| 记忆系统 | 跨会话持久化上下文 |
-| Docker | 容器化部署方案 |
-| Plugin | 插件扩展机制 |
-| Session | 会话管理与分支 |
+### OpenClaw 是什么？
 
----
+OpenClaw 是一个**个人 AI 助手的运行环境**。你可以把它理解成一个"智能插座"，接上各种聊天平台（微信、Telegram、Discord），再接上 AI 大脑（Claude、GPT），就能让它们对话了。
 
-## 一、OpenClaw 概述
+它的口号是：
 
-### 1.1 项目起源与定位
+> **"Any OS. Any Platform. The lobster way."**
+> 翻译：什么系统都能跑，什么平台都能接，小龙虾的方式。
 
-OpenClaw 是一个由 Mario Zechner（libGDX 游戏引擎创始人）主导的开源项目，旨在打造一个**完全自托管的个人 AI 助手运行时**。项目以小龙虾（lobster）为精神图腾，象征着在信息海洋中灵活穿行、适应性强且易于繁殖的特质。
+### 几个核心概念
 
-截至 2026 年 4 月，OpenClaw 已累计获得超过 **35.9 万 GitHub 星标**，成为开源 AI Agent 领域最具影响力的项目之一。其核心理念可以用项目口号概括：
-
-> *"Any OS. Any Platform. The lobster way."*
-
-### 1.2 核心功能矩阵
-
-| 功能模块 | 详细说明 |
-|----------|----------|
-| **多渠道接入** | Discord、Telegram、WhatsApp、Slack、Signal、Matrix、邮件等 20+ 平台 |
-| **自托管部署** | Docker 一键部署，数据完全本地化 |
-| **工具调用** | 代码执行、文件读写、bash 命令、网页浏览 |
-| **记忆系统** | Markdown 文件存储的跨会话持久化上下文 |
-| **多 Agent** | 支持隔离工作区与独立会话管理 |
-| **插件生态** | ClawHub 3200+ 插件可扩展 |
-| **多模型支持** | Anthropic、OpenAI、Google、xAI、Groq 等主流 LLM |
-
----
-
-## 二、Pi Framework 详解
-
-### 2.1 什么是 Pi Framework
-
-Pi Framework 是 OpenClaw 的底层运行时核心，采用了**极简主义设计哲学**。与 LangChain、AutoGen 等重型框架不同，Pi 仅提供 4 个核心工具就被设计成一个功能完整的 Agent 运行时。
-
-**Pi 的四大核心工具**：
-
-```python
-# Pi Framework 内置工具集
-tools = [
-    "read",    # 文件读取
-    "write",   # 文件写入
-    "edit",    # 文件编辑
-    "bash"     # Shell 命令执行
-]
-```
-
-### 2.2 Pi 的设计原则
-
-Pi Framework 遵循以下核心原则：
-
-1. **极简优先**：系统提示词控制在 1000 tokens 以内
-2. **工具正交**：每个工具职责单一，无功能重叠
-3. **显式优于隐式**：所有操作都通过工具调用完成，无魔法发生
-4. **可预测性**：相同的输入总是产生确定性的行为
-
-### 2.3 Pi 与 OpenClaw 的关系
-
-```
-┌─────────────────────────────────────┐
-│        OpenClaw Gateway              │
-│  (消息路由 / 渠道适配 / 会话管理)      │
-└─────────────────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│         Pi Agent SDK                │
-│  (内置于 OpenClaw 进程中)            │
-│  - 4 Core Tools                     │
-│  - System Prompt < 1000 tokens      │
-│  - Multi-Model Support              │
-└─────────────────────────────────────┘
-```
-
----
-
-## 三、自托管部署
-
-### 3.1 为什么选择自托管
-
-自托管（Self-hosted）部署是 OpenClaw 区别于商业 AI 服务的核心优势：
-
-| 对比维度 | 自托管 OpenClaw | 云服务（如 ChatGPT） |
-|----------|-----------------|---------------------|
-| 数据隐私 | 完全自主控制 | 服务商可访问 |
-| 成本 | 一次性硬件投入 | 按订阅付费 |
-| 定制化 | 完全开放源码 | 受限的 API |
-| 离线可用 | 完全支持 | 不可用 |
-| 延迟 | 本地网络延迟 | 依赖云端 |
-
-### 3.2 Docker 部署方案
-
-OpenClaw 提供官方 Docker 镜像，部署步骤如下：
-
-```bash
-# 拉取官方镜像
-docker pull openclaw/openclaw:latest
-
-# 创建数据目录
-mkdir -p ~/openclaw/{config,data,plugins}
-
-# 启动容器
-docker run -d \
-  --name openclaw \
-  -p 18789:18789 \
-  -v ~/openclaw/config:/app/config \
-  -v ~/openclaw/data:/app/data \
-  -v ~/openclaw/plugins:/app/plugins \
-  openclaw/openclaw:latest
-```
-
-### 3.3 源码部署
-
-对于需要深度定制的用户，可以从源码构建：
-
-```bash
-# 克隆仓库
-git clone https://github.com/openclaw-project/openclaw.git
-cd openclaw
-
-# 安装依赖
-pip install -e ".[dev]"
-
-# 运行
-python -m openclaw
-```
-
----
-
-## 四、多渠道集成
-
-### 4.1 支持的平台一览
-
-OpenClaw 通过插件机制支持丰富的聊天平台：
-
-| 平台 | 协议类型 | 状态 |
+| 概念 | 人话解释 | 类比 |
 |------|----------|------|
-| Discord | WebSocket | 官方支持 |
-| Telegram | Long Polling / Webhook | 官方支持 |
-| WhatsApp | WhatsApp Web Protocol | 官方支持 |
-| Slack | WebSocket | 官方支持 |
-| Signal | Signal Protocol | 社区支持 |
-| Matrix | Matrix Protocol | 社区支持 |
-| Email (SMTP/IMAP) | Email Protocol | 社区支持 |
-| IRC | IRC Protocol | 社区支持 |
+| **Pi Framework** | OpenClaw 的"大脑"，负责思考和决策 | 人的大脑 |
+| **Gateway** | "路由器"，把各平台的消息转发给大脑 | 人的耳朵和嘴 |
+| **Channel** | 聊天平台适配器（微信/Telegram/Discord） | 各种通讯设备 |
+| **Memory** | 记忆系统，让 AI 记住之前聊过什么 | 人的记忆 |
+| **Skill/Plugin** | 技能/插件，给 AI 增加新能力 | 人的新技能 |
 
-### 4.2 Telegram 集成示例
+---
+
+## Pi Framework：小而美的 AI 大脑
+
+### 为什么叫"Pi"？
+
+"Pi"（π）是数学里的圆周率——无限不循环小数。开发者用它命名，大概是想说：这个框架简单到不能再简单，但又功能无限。
+
+### Pi 的设计哲学
+
+Pi Framework 的核心理念是：**少即是多**。
+
+其他 AI Agent 框架可能给你 100 个工具，但 Pi 只给你 **4 个核心工具**：
+
+| 工具 | 能干啥 | 举个例子 |
+|------|--------|----------|
+| **read** | 读取文件 | 读你的笔记、配置文件 |
+| **write** | 写入文件 | 把结果保存到文件 |
+| **edit** | 编辑文件 | 修改某个文件的内容 |
+| **bash** | 执行命令 | 运行终端命令 |
+
+就这 4 个？但这就够了。
+
+> 想象一下，给你 100 把不同的瑞士军刀，你可能记不住每个怎么用。但如果只有一把小刀，你反而能用到极致。
+
+### 为什么系统提示词要 < 1000 tokens？
+
+Token 可以理解为 AI 处理文字的"计量单位"。提示词越短，消耗越少，响应越快，还能留更多空间给对话内容。
+
+Pi 的目标是把系统提示词压到 **1000 tokens 以内**，这需要精心设计，就像写高考作文——每个字都得有用。
+
+---
+
+## 多平台接入：一条消息，多端同步
+
+### 支持哪些平台？
+
+OpenClaw 像个"万能插头"，支持超多聊天平台：
+
+| 平台 | 状态 | 说明 |
+|------|------|------|
+| **Telegram** | ✅ 官方支持 | 最推荐，Bot 开发门槛低 |
+| **Discord** | ✅ 官方支持 | 适合社区、服务器 |
+| **WhatsApp** | ✅ 官方支持 | 适合跨境沟通 |
+| **Slack** | ✅ 官方支持 | 企业用得多 |
+| **Signal** | ✅ 官方支持 | 注重隐私 |
+| **Microsoft Teams** | ✅ 官方支持 | 企业办公 |
+| **微信** | ⚠️ 企业版 | 个人用有门槛 |
+| **飞书** | ⚠️ 企业版 | 同上 |
+| **Matrix** | ✅ 社区支持 | 去中心化协议 |
+| **IRC** | ✅ 社区支持 | 老牌聊天协议 |
+| **Email** | ✅ 社区支持 | 邮件也能接 |
+
+### 怎么接 Telegram？（最简单）
+
+1. 去 @BotFather 创建一个 Bot，获得 Token
+2. 去 @userinfobot 获取你的用户 ID
+3. 编辑配置：
 
 ```yaml
-# config.yaml
 channels:
   telegram:
     enabled: true
-    bot_token: "YOUR_BOT_TOKEN"
-    api_id: "YOUR_API_ID"
-    api_hash: "YOUR_API_HASH"
+    bot_token: "123456:ABC-xxxxx"   # BotFather 给的
     allowed_users:
-      - user_id: 123456789
-        name: "主用户"
-        workspace: "default"
+      - 123456789                      # 你的用户 ID
 ```
 
-### 4.3 Discord 集成示例
+4. 重启服务，Bot 就能用了。
+
+### 怎么接 Discord？
+
+Discord 比 Telegram 稍微复杂一点，但功能也更强大。
+
+**第一步**：去 Discord Developer Portal 创建 Application
+
+1. 访问 https://discord.com/developers/applications
+2. 点 "New Application" 创建应用
+3. 点 "Bot" 页面
+4. 点 "Reset Token" 获取 Bot Token
+
+**第二步**：配置权限
+
+在 Bot 页面，开启这些 Intent：
+- SERVER MEMBERS INTENT
+- MESSAGE CONTENT INTENT
+
+**第三步**：邀请 Bot 到服务器
+
+1. 去 OAuth2 → URL Generator
+2. Scopes 勾选 `bot`
+3. Bot Permissions 勾选需要的权限
+4. 复制生成的 URL，浏览器打开，添加到你的服务器
+
+**第四步**：配置 OpenClaw
 
 ```yaml
 channels:
   discord:
     enabled: true
-    bot_token: "YOUR_DISCORD_BOT_TOKEN"
+    bot_token: "MTEyyyy.BBBBB.xxxxx"   # 你的 Bot Token
     allowed_guilds:
-      - guild_id: 987654321
-        name: "我的服务器"
-        channels:
-          - channel_id: 111222333
-            workspace: "default"
+      - 123456789                       # 服务器 ID
 ```
 
 ---
 
-## 五、记忆系统
+## 记忆系统：让 AI 记住你是谁
 
-### 5.1 记忆架构
+### 为什么需要记忆？
 
-OpenClaw 采用**静态记忆系统**，以 Markdown 文件为核心存储介质：
+普通 AI 每次对话都是"失忆"的——你说"帮我查下上次那个文件"，它一脸懵逼。
+
+OpenClaw 的记忆系统让 AI 能跨会话记住：
+- 你是谁
+- 你喜欢什么
+- 之前聊过什么
+- 你的工作习惯
+
+### 记忆是怎么存的？
+
+OpenClaw 用 **Markdown 文件**存记忆。打开你的 `~/.openclaw/` 目录，会看到这样的结构：
 
 ```
-记忆存储结构：
-├── memory/
-│   ├── long_term/
-│   │   ├── facts.md       # 事实性记忆
-│   │   ├── preferences.md # 用户偏好
-│   │   └── knowledge.md   # 领域知识
-│   ├── short_term/
-│   │   └── session_*.md   # 当前会话
-│   └── working/
-│       └── context.md     # 工作上下文
+memory/
+├── long_term/           # 长期记忆
+│   ├── facts.md         # 事实：比如"我叫张三"
+│   ├── preferences.md    # 偏好：比如"喜欢用中文回复"
+│   └── knowledge.md     # 知识：比如"我是个程序员"
+├── short_term/          # 短期记忆（当前会话）
+│   └── session_xxx.md
+└── working/            # 工作上下文
+    └── context.md
 ```
 
-### 5.2 记忆检索机制
+### 怎么手动添加记忆？
 
-OpenClaw 在每次对话前会将相关记忆注入上下文：
+创建或编辑 `memory/long_term/facts.md`：
 
-```python
-# 记忆检索流程
-1. 解析当前用户消息
-2. 提取关键实体和意图
-3. 在 long_term/ 目录中搜索相关记忆
-4. 按相关性排序
-5. 选取 Top-N 条记忆注入系统提示
+```markdown
+# 关于用户的事实
+
+- 名字叫小明
+- 是一名全栈工程师
+- 主要使用 JavaScript 和 Python
+- 在北京工作
+- 喜欢喝咖啡
 ```
+
+AI 下次对话时，会自动读取这些内容。
+
+### 记忆是怎么工作的？
+
+每次你发消息，OpenClaw 会：
+
+1. **检索**：在记忆文件里搜索相关内容
+2. **注入**：把最相关的记忆塞到 AI 的上下文里
+3. **思考**：AI 根据记忆理解你的问题
+4. **回复**：给出个性化的回答
 
 ---
 
-## 六、插件系统
+## 技能系统：给 AI 装插件
 
-### 6.1 ClawHub 生态
+### 什么是技能？
 
-ClawHub 是 OpenClaw 的官方技能市场，提供 **3200+** 插件供用户安装：
+技能（Skill）就像给 AI 装一个 App。比如：
+- 装个"天气技能" → AI 就能查天气
+- 装个"翻译技能" → AI 就能翻译
+- 装个"GitHub 技能" → AI 就能帮你管代码
 
-| 类别 | 插件数量 | 代表插件 |
-|------|----------|----------|
-| 生产力 | 500+ | 日程管理、邮件处理、任务跟踪 |
-| 开发 | 400+ | Git 操作、代码审查、API 测试 |
-| 信息获取 | 600+ | 天气查询、新闻聚合、股票行情 |
-| 娱乐 | 300+ | 游戏、音乐推荐、段子生成 |
-| AI 工具 | 400+ | 图像生成、翻译、OCR |
+### ClawHub：技能市场
 
-### 6.2 插件安装
+ClawHub 是 OpenClaw 的官方技能市场，有 **3200+ 个技能**可选。
+
+访问地址：https://clawhub.openclaw.ai
+
+### 怎么装技能？
+
+**命令行安装**：
 
 ```bash
-# 通过 CLI 安装插件
-openclaw plugin install weather
-openclaw plugin install github
-openclaw plugin install notion
+# 搜索技能
+openclaw skill search "天气"
 
-# 查看已安装插件
-openclaw plugin list
+# 安装
+openclaw skill install @openclaw/weather
+
+# 查看已安装
+openclaw skill list
+
+# 卸载
+openclaw skill uninstall @openclaw/weather
 ```
+
+**或者用配置文件**：
+
+```yaml
+skills:
+  install:
+    - name: "@openclaw/weather"
+    - name: "@openclaw/github"
+    - name: "@openclaw/notion"
+```
+
+### 热门技能推荐
+
+| 技能 | 能干啥 | 适合谁 |
+|------|--------|--------|
+| `@openclaw/weather` | 查天气 | 所有人 |
+| `@openclaw/github` | 管 GitHub | 开发者 |
+| `@openclaw/notion` | 读写 Notion | 知识管理党 |
+| `@openclaw/calendar` | 管日程 | 日理万机党 |
+| `@openclaw/translate` | 翻译 | 多语言党 |
+| `@openclaw/image-gen` | AI 画图 | 创作者 |
 
 ---
 
-## 七、配置详解
+## 配置详解
 
-### 7.1 完整配置结构
+### 完整配置示例
 
 ```yaml
-# config.yaml 完整配置示例
-openclaw:
-  version: "2.x"
-  
-# 语言模型配置
-llm:
-  provider: "anthropic"  # anthropic | openai | google | groq
-  model: "claude-sonnet-4-20250514"
-  api_key: "${ANTHROPIC_API_KEY}"
-  max_tokens: 4096
-  temperature: 0.7
+# config.yaml
 
-# 渠道配置
+# ===== AI 模型配置 =====
+llm:
+  provider: "anthropic"                        #anthropic/openai/google/groq
+  model: "claude-sonnet-4-20250514"          # 具体用哪个模型
+  api_key: "${ANTHROPIC_API_KEY}"             # 用环境变量更安全
+  max_tokens: 4096                            # 最大输出长度
+  temperature: 0.7                             # 创造性，0-1，越高越随机
+
+# ===== 聊天平台配置 =====
 channels:
   telegram:
     enabled: true
     bot_token: "${TELEGRAM_BOT_TOKEN}"
-    
-# 记忆配置  
-memory:
-  type: "markdown"  # markdown | sqlite | vector
-  long_term_dir: "./memory/long_term"
-  max_context记忆: 10
+    allowed_users:
+      - 123456789
 
-# 工作区配置
+  discord:
+    enabled: false
+    bot_token: "${DISCORD_BOT_TOKEN}"
+
+# ===== 记忆配置 =====
+memory:
+  type: "markdown"                           # markdown/sqlite/vector
+  long_term_dir: "./memory/long_term"
+  max_context: 10                            # 最多注入多少条记忆
+
+# ===== 系统提示词 =====
+system:
+  prompt: |
+    你是一个友好、helpful 的中文 AI 助手。
+    请用简洁、口语化的方式回答问题。
+    如果不确定就说"我不知道"，别瞎编。
+
+# ===== 技能配置 =====
+skills:
+  install:
+    - "@openclaw/weather"
+    - "@openclaw/translate"
+
+# ===== 安全设置 =====
+security:
+  allowed_tools: ["read", "write"]          # 只允许特定工具
+  denied_tools: ["bash"]                       # 禁用危险工具
+```
+
+### 配置项说明
+
+| 配置项 | 说明 | 推荐值 |
+|--------|------|--------|
+| `provider` | AI 服务商 | `anthropic`（性价比高） |
+| `temperature` | 创造性 | 0.7（平衡） |
+| `max_tokens` | 最大输出 | 4096（够用） |
+| `allowed_users` | 白名单 | 填你的用户 ID |
+| `allowed_tools` | 允许的工具 | 按需配置 |
+
+---
+
+## 工作区：多个 AI 分身
+
+### 什么是工作区？
+
+工作区（Workspace）就像给 AI 开多个"房间"。每个房间的 AI 记忆、配置、对话都是独立的。
+
+**使用场景**：
+- 工作用 AI 和生活用 AI 分开
+- 给不同的项目配不同的 AI 角色
+- 测试不同的 AI 配置
+
+### 配置多工作区
+
+```yaml
 workspaces:
   default:
-    name: "默认工作区"
-    system_prompt: "你是一个helpful的AI助手"
+    name: "默认助手"
+    prompt: "你是一个通用助手"
+
+  developer:
+    name: "开发者助手"
+    prompt: "你是一个资深程序员，擅长代码审查和架构设计"
+    llm:
+      model: "gpt-4-turbo"                    # 这个工作区用 GPT
+
+  writer:
+    name: "写作助手"
+    prompt: "你是一个专业文案，擅长写作和内容创作"
+    llm:
+      model: "claude-sonnet-4-20250514"
+```
+
+### 工作区切换
+
+在 Telegram 里：
+```
+/workspace developer    # 切换到开发者助手
+/workspace writer      # 切换到写作助手
 ```
 
 ---
 
-## 八、进阶技巧
+## 常用命令
 
-### 8.1 多 Agent 协作
+### OpenClaw CLI 命令
 
-OpenClaw 支持配置多个隔离的 Agent 实例：
+```bash
+# 启动
+openclaw gateway
+
+# 引导配置
+openclaw onboard
+
+# 打开控制面板
+openclaw dashboard
+
+# 技能管理
+openclaw skill list
+openclaw skill install <name>
+openclaw skill uninstall <name>
+
+# 更新
+openclaw update
+
+# 查看状态
+openclaw status
+
+# 日志
+openclaw logs
+
+# 诊断问题
+openclaw doctor
+```
+
+---
+
+## 常见问题
+
+### Q: 怎么让 AI 用中文回答？
+
+在 `system.prompt` 里明确说：
 
 ```yaml
-agents:
-  - name: "研究助手"
-    workspace: "research"
-    model: "claude-sonnet-4-20250514"
-    
-  - name: "代码助手"
-    workspace: "coding"
-    model: "gpt-4-turbo"
+system:
+  prompt: "请始终用中文回答问题。"
 ```
 
-### 8.2 定时任务
+### Q: AI 回复太慢了怎么办？
 
-通过插件实现定时执行：
+1. 用 `groq` provider（免费，速度快）：
+```yaml
+llm:
+  provider: "groq"
+  model: "llama-3.3-70b-versatile"
+```
+
+2. 减少 `max_tokens`
+
+3. 用更小的模型，比如 `claude-3-haiku`
+
+### Q: 怎么让 AI 记住更多东西？
+
+1. 多往 `memory/long_term/` 里写
+2. 定期整理记忆文件
+3. 安装 `@openclaw/active-memory` 插件（自动记住重要对话）
+
+### Q: 能同时接多个平台吗？
+
+完全可以！只要在 `channels` 里启用多个就行。
 
 ```yaml
-# crontab 配置示例
-schedules:
-  - name: "每日早报"
-    cron: "0 8 * * *"
-    action: "plugin:news_digest/send_morning_brief"
-    
-  - name: "健康提醒"
-    cron: "0 12 * * 1-5"
-    action: "plugin:health/remind_water"
+channels:
+  telegram:
+    enabled: true
+  discord:
+    enabled: true
+  slack:
+    enabled: true
 ```
 
----
+### Q: 数据存在哪？
 
-## 九、常见问题
-
-> [!faq] Q1: OpenClaw 与 Hermes Agent 有什么区别？
-> OpenClaw 侧重于多渠道接入和插件生态，采用 Gateway 架构；Hermes Agent 侧重于自进化和持久记忆，采用 SQLite 本地存储。
-
-> [!faq] Q2: 支持中文吗？
-> 完全支持。通过配置合适的 LLM（如 Claude、GPT-4）即可处理中文对话。
-
-> [!faq] Q3: 需要 GPU 吗？
-> 不需要。OpenClaw 本身是消息路由和工具调用的运行时，不运行模型。LLM 调用通过 API 远程完成。
+默认在 `~/.openclaw/` 目录：
+- `~/.openclaw/config/` - 配置文件
+- `~/.openclaw/data/` - 运行数据
+- `~/.openclaw/memory/` - 记忆文件
+- `~/.openclaw/plugins/` - 插件
 
 ---
 
-## 十、相关文档
+## 下一步
 
-- [[OpenClaw架构解析]] - 深入了解 OpenClaw 技术架构
-- [[Pi_Framework深度解析]] - Pi Framework 极简设计
-- [[OpenClaw安装部署]] - 详细部署指南
-- [[OpenClaw配置详解]] - 配置项详解
-- [[OpenClaw多平台集成]] - 各平台接入详解
-- [[OpenClaw记忆系统]] - 记忆系统原理
-- [[OpenClaw插件开发]] - 开发自己的插件
-- [[OpenClaw高级用法]] - 高级技巧与最佳实践
-- [[Hermes_Agent详解]] - Hermes Agent 详解
-- [[Hermes_vs_OpenClaw对比]] - 两者对比分析
+学会了基础？继续探索：
+
+| 教程 | 内容 | 难度 |
+|------|------|------|
+| [[OpenClaw架构解析]] | 技术内幕，怎么工作的 | ⭐⭐ |
+| [[OpenClaw多平台集成]] | 接更多平台 | ⭐ |
+| [[OpenClaw记忆系统]] | 记忆系统详解 | ⭐⭐ |
+| [[OpenClaw插件开发]] | 自己写插件 | ⭐⭐⭐ |
+| [[Pi_Framework深度解析]] | Pi 框架设计哲学 | ⭐⭐⭐ |
+| [[Hermes_Agent详解]] | 另一个框架 | ⭐⭐ |
+| [[Hermes_vs_OpenClaw对比]] | 选哪个更好 | ⭐ |
 
 ---
 
-*文档更新于 2026年4月18日*
+**文档状态**：完整指南  
+**更新时间**：2026年4月
